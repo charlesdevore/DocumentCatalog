@@ -142,10 +142,18 @@ def copy_files(source_dir, dest_dir, allow_dest_exist=False):
 def find_files(search_dir, existing_files=[''],
                exclusion_dirs=['_Links'], verbose_flag=False):
 
-    # This function walks through the files in search_dir and creates
-    # a catalog of the files including their directory, filename,
-    # extension, and file path. The information is stored in a
-    # list of dictionarys.
+    """
+    find_files(search_dir)
+    
+    This function walks through the files in search_dir and creates
+    a catalog of the files including their directory, filename,
+    extension, and file path. The information is stored in a
+    list of dictionaries including the Directory, Filename, File Path,
+    Extension, File Size, File Size bytes.
+
+    This function takes optional input for excluding existing files,
+    excluding directories, and to show verbose output.
+    """
 
     file_list = []
     counter = 0
@@ -154,6 +162,7 @@ def find_files(search_dir, existing_files=[''],
         for f in files:
             file_path = os.path.join(root, f)
 
+            # existing_files should be a list of absolute paths
             if not file_path in existing_files:
 
                 # The file extension is the second entry of the split list
