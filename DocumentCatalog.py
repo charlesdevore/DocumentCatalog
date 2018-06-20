@@ -17,26 +17,6 @@ import datetime
 import win32com.client
 
 
-def copy_and_catalog(source_dir, dest_dir, fname='Document Catalog.xlsx'):
-
-    ret = copy_files(source_dir, dest_dir)
-
-    if ret < 0.0:
-        print('WARNING: Error copying files. ' +
-              'Manually copy files and then continue.')
-
-        return -1
-
-    ret = create_document_catalog(dest_dir, fname)
-
-    if ret < 0.0:
-        print('WARNING: Error creating document catalog.')
-        return -1
-
-    return 1
-
-
-
 def load_existing(fname):
 
     df = pd.read_excel(fname)
@@ -66,46 +46,18 @@ def add_files_to_existing(df, search_dir):
     return ndf
 
 
-def find_new_files_from_existing(df, search_dir):
-    
-    new_files = []
-    counter = 0
-    
-    for root, dirs, files in os.walk(search_dir):
-        for name in files:
-            if not df['File Path'].isin([os.path.join(root, name)]).any():
-                new_file = {}
-                new_file['Directory'] = root
-                new_file['Filename'] = name
-                new_file['Extension'] = os.path.splitext(name)[1][1:]
-                new_file['File Path'] = os.path.join(root, name)
-                new_file['File Size'] = get_human_readable(os.path.getsize(os.path.join(root, name)), 0)
+def copy_files(source_dir, dest_dir, batch_file = 'run_DC_copy.bat', allow_dest_exist=False):
 
-                new_files.append(new_file)
-                counter += 1
-                
-        if 'Links' in dirs:
-            dirs.remove('Links')
-        
-    # Output file statistics
-    if counter > 0:
-        print('--------------')
-        print('\t==> Found in: ' + search_dir + ' : ' + str(counter) + ' new files\n')
+    """
+    copy_files(source_dir, dest_dir)
 
-    return new_files
+    Use the following windows commands to copy the files and change
+    the attributes. Create a batch file and run using Windows
+    command.
 
-
-
-def copy_files(source_dir, dest_dir, allow_dest_exist=False):
-
-    # Use the following windows commands to copy the files and change
-    # the attributes. Create a batch file and run using Windows
-    # command.
-
-    # robocopy source_dir dest_dir *.* /E /COPY:DT /DCOPY:DAT
-    # attrib +R dest_dir\* /S
-
-
+    robocopy source_dir dest_dir *.* /E /COPY:DT /DCOPY:DAT
+    attrib +R dest_dir\* /S
+    """
 
     if not platform.system() == 'Windows':
         raise OSError
@@ -113,12 +65,16 @@ def copy_files(source_dir, dest_dir, allow_dest_exist=False):
     if not allow_dest_exist:
         if os.path.isdir(dest_dir):
             # Destination directory already exists
+            print('Destination directory exists. Rerun 
+                   with allow_existing_directory flag to enable 
+                   copying. Warning, this may cause overwriting 
+                   of existing files.')
+            
             return -1
 
         else:
             os.mkdir(dest_dir)
 
-    batch_file = 'run.bat'
 
     with open(batch_file, 'w') as bfile:
 
@@ -130,7 +86,7 @@ def copy_files(source_dir, dest_dir, allow_dest_exist=False):
         os.system(batch_file)
 
     except:
-        # Batch file did not run correctly.
+        print('Batch file did not run correctly.')
         return -2
 
     finally:
