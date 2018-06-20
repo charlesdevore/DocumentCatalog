@@ -175,8 +175,10 @@ def find_files(search_dir, existing_files=[''],
                 file['Extension'] = ext
                 file['File Path'] = file_path
 
-                file['File Size'] =
-                get_human_readable(os.path.getsize(file_path), 0)
+                file['File Size'] = get_human_readable(
+                    os.path.getsize(file_path), 0)
+
+                file['File Size (bytes)'] = os.path.getsize(file_path)
 
                 file_list.append(file)
                 counter += 1
@@ -519,7 +521,7 @@ def OSX_links(files):
     
     for file in files:
 
-        file_cmd = 'link.sh -o "{}"'.format(file['Link Path']))
+        file_cmd = 'link.sh -o "{}"'.format(file['Link Path'])
         file['OSX File Link'] = '=shell("{}")'.format(file_cmd)
 
         dir_cmd = 'link.sh -l "{}"'.format(file['Directory Path'])
