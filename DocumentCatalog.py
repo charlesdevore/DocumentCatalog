@@ -65,10 +65,10 @@ def copy_files(source_dir, dest_dir, batch_file = 'run_DC_copy.bat', allow_dest_
     if not allow_dest_exist:
         if os.path.isdir(dest_dir):
             # Destination directory already exists
-            print('Destination directory exists. Rerun 
-                   with allow_existing_directory flag to enable 
-                   copying. Warning, this may cause overwriting 
-                   of existing files.')
+            print('''Destination directory exists. Rerun 
+                     with allow_existing_directory flag to enable 
+                     copying. Warning, this may cause overwriting 
+                     of existing files.''')
             
             return -1
 
