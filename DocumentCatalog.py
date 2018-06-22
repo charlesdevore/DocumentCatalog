@@ -152,40 +152,40 @@ def find_files(search_dir, existing_files=[''],
     return file_list
 
 
-def link(file_list, base_dir, link_start=1):
+def link(files_df, base_dir, verbose_flag=False):
 
-    # Create hard links in link directory corresponding to a unique
-    # hexadecimal representation of the file iterator number.
+    """
+    Create hard links in link directory corresponding to a unique
+    hexadecimal representation of the file iterator number.
+    """
 
     link_dir = os.path.join(base_dir, '_Links')
     if not os.path.isdir(link_dir):
         os.mkdir(link_dir)
 
-    new_file_list = []
 
     link_counter = 0
 
-    for i, file in enumerate(file_list):
+    for file in files_df.iterrows():
 
-        link = (link_dir + '\\' + 'file_{0:x}'.format(link_start+i) +
-                '.' + file['Extension'])
+        link_fname = 'file_{0:x}.{1:s}'.format(file.index, file['Extension'])
+        link_path = os.path.join(link_dir, link_fname)
 
         long_name = long_file_name(file['File Path'])
 
         try:
-            os.link(long_name, link)
+            os.link(long_name, link_path)
             link_counter += 1
-            
+
         except:
-            print('Error making link:\n{}\n{}'.format(long_name, link))
+            print('Error making link:\n{}\n{}'.format(long_name, link_path))
 
-        file['Link Path'] = link
+        file['Link Path'] = link_path
 
-        new_file_list.append(file)
+    if verbose_flag:
+        print('{} links out of {} added in:\n\t{}\n'.format(link_counter, len(files_df), link_dir))
 
-    print('{} links out of {} added in:\n\t{}\n'.format(link_counter, len(new_file_list), link_dir))
-
-    return new_file_list
+    return
 
 
 def file_catalog(file_list, max_depth):
@@ -213,7 +213,7 @@ def file_catalog(file_list, max_depth):
         except:
             print(file['File Path'])
 
-    file_catalog = pd.DataFrame(new_file_list)
+    files_df = pd.DataFrame(new_file_list)
 
     # Order columns
     cols = ['File Path'] + keys + ['Filename', 'Extension',
