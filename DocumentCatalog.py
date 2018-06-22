@@ -215,15 +215,15 @@ def file_catalog(file_list, max_depth):
 
     files_df = pd.DataFrame(new_file_list)
 
-    # Order columns
-    cols = ['File Path'] + keys + ['Filename', 'Extension',
-                                   'File Size', 'Link Path',
-                                   'Directory', 'File Link',
-                                   'Directory Link']
+    # # Order columns
+    # cols = ['File Path'] + keys + ['Filename', 'Extension',
+    #                                'File Size', 'Link Path',
+    #                                'Directory', 'File Link',
+    #                                'Directory Link']
 
-    file_catalog = file_catalog[cols]
+    # file_catalog = file_catalog[cols]
 
-    return file_catalog
+    return files_df
 
 
 def subdirectory(file_list, root_dir):
@@ -271,7 +271,7 @@ def subdirectory(file_list, root_dir):
     return new_file_list, max_depth
 
 
-def add_hyperlinks(file_list):
+def add_hyperlinks(files_list):
 
     # Add Excel hyperlinks to each of the entries in the list. A
     # hyperlink for the directory and the filename are added.
