@@ -168,7 +168,7 @@ def link(files_df, base_dir, verbose_flag=False):
 
     for file in files_df.iterrows():
 
-        link_fname = 'file_{0:x}.{1:s}'.format(file.index, file['Extension'])
+        link_fname = 'file_{0:x}.{1:s}'.format(file.name, file['Extension'])
         link_path = os.path.join(link_dir, link_fname)
 
         long_name = long_file_name(file['File Path'])
