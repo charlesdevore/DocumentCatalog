@@ -180,7 +180,14 @@ def link(files_df, base_dir, verbose_flag=False):
         except:
             print('Error making link:\n{}\n{}'.format(long_name, link_path))
 
+        # Save the link paths and add hyperlinks for Excel
         file['Link Path'] = link_path
+
+        file['File Link'] = '=hyperlink("{}","File")'.format(
+            file['Link Path'])
+
+        file['Directory Link'] = '=hyperlink("{}","Directory")'.format(
+            file['Directory'])
 
     if verbose_flag:
         print('{} links out of {} added in:\n\t{}\n'.format(link_counter, len(files_df), link_dir))
@@ -270,25 +277,6 @@ def subdirectory(file_list, root_dir):
 
     return new_file_list, max_depth
 
-
-def add_hyperlinks(files_list):
-
-    # Add Excel hyperlinks to each of the entries in the list. A
-    # hyperlink for the directory and the filename are added.
-
-    new_file_list = []
-
-    for file in file_list:
-
-        file['File Link'] = '=hyperlink("{}","File")'.format(
-            file['Link Path'])
-
-        file['Directory Link'] = '=hyperlink("{}","Directory")'.format(
-            file['Directory'])
-
-        new_file_list.append(file)
-
-    return new_file_list
 
 
 def export(file_catalog, email_catalog, fname):
