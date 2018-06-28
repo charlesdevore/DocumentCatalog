@@ -24,28 +24,6 @@ def load_existing(fname):
     return df
 
 
-def add_files_to_existing(df, search_dir):
-
-    files = find_new_files_from_existing(df, search_dir)
-
-    files, max_depth = subdirectory(files, search_dir)
-
-    N = df.iloc[-1].name + 1
-    files = link(files, search_dir, link_start=N)
-
-    files = add_hyperlinks(files)
-
-    FC = file_catalog(files, max_depth)
-
-    ndf = pd.concat([df, FC], ignore_index=True)
-
-    # Organize columns
-    cols = df.columns.to_list()
-    ndf = ndf[cols]
-
-    return ndf
-
-
 def copy_files(source_dir, dest_dir, batch_file = 'run_DC_copy.bat', allow_dest_exist=False):
 
     """
