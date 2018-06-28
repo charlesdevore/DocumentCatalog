@@ -511,7 +511,17 @@ if __name__ == '__main__':
         else:
 
             # Search in with an existing catalog
-            pass
+            existing_df = load_existing(args.input_file)
+            existing_list = [row['File Path']
+                             for row in existing_df.iterrows()]
+            file_list = find_files(args.search_dir,
+                                   existing_files=existing_list,
+                                   verbose_flag=args.verbose)
+            file_list, max_depth = subdirectory(file_list, args.search_dir)
+            new_df = file_catalog(file_list, max_depth)
+            file_df = existing_df.append(new_df)
+
+            print(file_df)
 
             
     if args.create_links:
