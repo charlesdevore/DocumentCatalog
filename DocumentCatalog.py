@@ -479,4 +479,70 @@ def OSX_links(files):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Process arguments for DocumentCatalog')
-    parser.add_argument('--search-dir', dest='search_dir')
+    parser.add_argument('-s', '--search-dir', type=str)
+    parser.add_argument('-o', '--output', action='store_true', default=False)
+    parser.add_argument('--output-file', type=str, default='Document Catalog.xlsx')
+    parser.add_argument('-i', '--input-file', type=str)
+    parser.add_argument('-c', '--copy', action='store_true', default=False)
+    parser.add_argument('--copy-dir', type=str)
+    parser.add_argument('--copy-key', type=str)
+    parser.add_argument('--output-copy-dir', type=str)
+    parser.add_argument('--link-dir', type=str)
+    parser.add_argument('-l', '--create-links', action='store_true', default=False)
+    parser.add_argument('--create-OSX-links', action='store_true', default=False)
+    parser.add_argument('-v', '--verbose', action='store_true', default=False)
+
+    args = parser.parse_args()
+
+    if args.copy:
+
+        if args.copy_dir is not None and args.search_dir is not None:
+
+            # Copy files from search directory to copy directory
+
+        elif args.copy_key is not None and args.output_copy_dir is not None:
+
+            # Copy specific files to output copy directory
+
+
+        else:
+
+            print("""Error: Copy requested but cannot complete
+            due to improper specifications.""")
+            return
+            
+    
+    if args.search_dir is not None:
+
+        if args.input_dir is None:
+
+            # Search in a new directory
+            
+            
+        else:
+
+            # Search in with an existing catalog
+
+            
+    if args.create_links:
+
+        # Add links
+        
+
+        if args.create_OSX_links:
+
+            # Add OSX links
+            
+
+
+    if args.output:
+
+        if args.input_dir is None:
+
+            # Build output with a new file
+
+        else:
+
+            # Build output with existing file
+
+            
