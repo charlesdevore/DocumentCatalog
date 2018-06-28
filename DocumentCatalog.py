@@ -494,16 +494,16 @@ if __name__ == '__main__':
 
             print("""Error: Copy requested but cannot complete
             due to improper specifications.""")
-            return
+        
             
     
     if args.search_dir is not None:
 
-        if args.input_dir is None:
+        if args.input_file is None:
 
             # Search in a new directory
             file_list = find_files(args.search_dir, verbose_flag=args.verbose)
-            file_list, max_depth = subdirectory(file_list, search_dir)
+            file_list, max_depth = subdirectory(file_list, args.search_dir)
             file_df = file_catalog(file_list, max_depth)
 
             print(file_df)
