@@ -500,7 +500,11 @@ if __name__ == '__main__':
         if args.input_dir is None:
 
             # Search in a new directory
-            
+            file_list = find_files(args.search_dir, verbose_flag=args.verbose)
+            file_list, max_depth = subdirectory(file_list, search_dir)
+            file_df = file_catalog(file_list, max_depth)
+
+            print(file_df)
             
         else:
 
