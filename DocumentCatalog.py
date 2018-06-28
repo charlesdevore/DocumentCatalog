@@ -482,10 +482,12 @@ if __name__ == '__main__':
         if args.copy_dir is not None and args.search_dir is not None:
 
             # Copy files from search directory to copy directory
+            pass
 
         elif args.copy_key is not None and args.output_copy_dir is not None:
 
             # Copy specific files to output copy directory
+            pass
 
 
         else:
@@ -509,17 +511,19 @@ if __name__ == '__main__':
         else:
 
             # Search in with an existing catalog
+            pass
 
             
     if args.create_links:
 
         # Add links
+        pass
         
 
         if args.create_OSX_links:
 
             # Add OSX links
-            
+            pass
 
 
     if args.output:
@@ -527,9 +531,11 @@ if __name__ == '__main__':
         if args.input_dir is None:
 
             # Build output with a new file
-
+            pass
+        
         else:
 
             # Build output with existing file
-
+            pass
+        
             
