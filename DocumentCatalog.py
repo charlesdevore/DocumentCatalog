@@ -44,7 +44,7 @@ def copy_files(source_dir, dest_dir, batch_file = 'run_DC_copy.bat', allow_dest_
         if os.path.isdir(dest_dir):
             # Destination directory already exists
             print('''Destination directory exists. Rerun 
-                     with allow_existing_directory flag to enable 
+                     with --allow-overwrite flag to enable 
                      copying. Warning, this may cause overwriting 
                      of existing files.''')
             
@@ -257,7 +257,7 @@ def subdirectory(file_list, root_dir):
 
 
 
-def export(file_catalog, email_catalog, fname):
+def export(file_catalog, email_catalog, fname, allow_overwrite=False):
 
     # Export the file catalog to an Excel workbook
 
@@ -389,6 +389,10 @@ def copy_specific_files(df, dest_dir, allow_existing_dir=False):
     if not allow_existing_dir:
         if os.path.isdir(dest_dir):
             # Destination directory already exists
+            print('''Destination directory exists. Rerun 
+                     with --allow-overwrite flag to enable 
+                     copying. Warning, this may cause overwriting 
+                     of existing files.''')
             return -1
 
         else:
@@ -465,6 +469,7 @@ if __name__ == '__main__':
     parser.add_argument('--copy-dir', type=str)
     parser.add_argument('--copy-key', type=str)
     parser.add_argument('--output-copy-dir', type=str)
+    parser.add_argument('--allow-overwrite', action='store_true', default=False)
     parser.add_argument('--link-dir', type=str)
     parser.add_argument('-l', '--create-links', action='store_true', default=False)
     parser.add_argument('--create-OSX-links', action='store_true', default=False)
