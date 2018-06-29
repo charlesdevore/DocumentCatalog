@@ -17,6 +17,29 @@ import datetime
 import win32com.client
 
 
+def search_in_new_directory(search_dir, verbose_flag):
+
+    # Search in a new directory
+    file_list = find_files(search_dir, verbose_flag=verbose_flag)
+    file_list, max_depth = subdirectory(file_list, args.search_dir)
+    file_df = file_catalog(file_list, max_depth)
+    
+
+def search_in_directory_with_existing_catalog(search_dir, input_file, verbose_flag):
+
+    # Search in directory with an existing catalog
+    existing_df = load_existing(input_file)
+    existing_list = [row['File Path']
+                     for ii, row in existing_df.iterrows()]
+    file_list = find_files(search_dir,
+                           existing_files=existing_list,
+                           verbose_flag=verbose_flag)
+    file_list, max_depth = subdirectory(file_list, search_dir)
+    new_df = file_catalog(file_list, max_depth)
+    file_df = existing_df.append(new_df, ignore_index=True)
+
+    
+    
 def load_existing(fname):
 
     df = pd.read_excel(fname)
@@ -501,26 +524,15 @@ if __name__ == '__main__':
 
         if args.input_file is None:
 
-            # Search in a new directory
-            file_list = find_files(args.search_dir, verbose_flag=args.verbose)
-            file_list, max_depth = subdirectory(file_list, args.search_dir)
-            file_df = file_catalog(file_list, max_depth)
-
+            file_df = search_in_new_directory(args.search_dir,
+                                              args.verbose)
             print(file_df)
             
         else:
 
-            # Search in with an existing catalog
-            existing_df = load_existing(args.input_file)
-            existing_list = [row['File Path']
-                             for ii, row in existing_df.iterrows()]
-            file_list = find_files(args.search_dir,
-                                   existing_files=existing_list,
-                                   verbose_flag=args.verbose)
-            file_list, max_depth = subdirectory(file_list, args.search_dir)
-            new_df = file_catalog(file_list, max_depth)
-            file_df = existing_df.append(new_df, ignore_index=True)
-
+            file_df = search_in_directory_with_existing_catalog(args.search_dir,
+                                                                args.input_file,
+                                                                args.verbose)
             print(file_df)
 
             
