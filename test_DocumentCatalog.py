@@ -20,5 +20,15 @@ class TestDC(unittest.TestCase):
         self.assertTrue(len(diff_files) == 1)
 
 
+    def test_search_in_new_directory(self):
+        all_df = DC.search_in_new_directory(test_dir)
+        self.assertTrue(len(all_df) == 7)
+
+        input_file = os.path.join(test_dir, 'some_files.xlsx')
+        some_df = DC.search_in_directory_with_existing_catalog(test_dir,
+                                                               input_file)
+        self.assertTrue(len(some_df) == 7)
+        
+
 if __name__ == '__main__':
     unittest.main()

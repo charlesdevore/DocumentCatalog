@@ -17,15 +17,17 @@ import datetime
 import win32com.client
 
 
-def search_in_new_directory(search_dir, verbose_flag):
+def search_in_new_directory(search_dir, verbose_flag=False):
 
     # Search in a new directory
     file_list = find_files(search_dir, verbose_flag=verbose_flag)
-    file_list, max_depth = subdirectory(file_list, args.search_dir)
+    file_list, max_depth = subdirectory(file_list, search_dir)
     file_df = file_catalog(file_list, max_depth)
+
+    return file_df
     
 
-def search_in_directory_with_existing_catalog(search_dir, input_file, verbose_flag):
+def search_in_directory_with_existing_catalog(search_dir, input_file, verbose_flag=False):
 
     # Search in directory with an existing catalog
     existing_df = load_existing(input_file)
@@ -38,6 +40,7 @@ def search_in_directory_with_existing_catalog(search_dir, input_file, verbose_fl
     new_df = file_catalog(file_list, max_depth)
     file_df = existing_df.append(new_df, ignore_index=True)
 
+    return file_df
     
     
 def load_existing(fname):
