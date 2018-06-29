@@ -10,10 +10,10 @@ class TestDC(unittest.TestCase):
 
     def test_find_files(self):
         all_files =  DC.find_files(test_dir)
-        self.assertTrue(len(all_files) == 6)
+        self.assertTrue(len(all_files) == 7)
         
         some_files =  DC.find_files(test_dir, exclusion_dirs=['sub_dir'])
-        self.assertTrue(len(some_files) == 5)
+        self.assertTrue(len(some_files) == 6)
 
         existing_files = [sf['File Path'] for sf in some_files]
         diff_files = DC.find_files(test_dir, existing_files=existing_files)

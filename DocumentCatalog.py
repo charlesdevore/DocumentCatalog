@@ -73,7 +73,7 @@ def copy_files(source_dir, dest_dir, batch_file = 'run_DC_copy.bat', allow_dest_
     return 1
 
 
-def find_files(search_dir, existing_files=[''],
+def find_files(search_dir, existing_files=[],
                exclusion_dirs=['_Links'], verbose_flag=False):
 
     """
@@ -97,7 +97,7 @@ def find_files(search_dir, existing_files=[''],
             file_path = os.path.join(root, f)
 
             # existing_files should be a list of absolute paths
-            if not file_path in existing_files:
+            if not any([os.path.samefile(file_path, ef) for ef in existing_files]):
 
                 # The file extension is the second entry of the split list
                 ext = os.path.splitext(f)[1]
@@ -513,13 +513,13 @@ if __name__ == '__main__':
             # Search in with an existing catalog
             existing_df = load_existing(args.input_file)
             existing_list = [row['File Path']
-                             for row in existing_df.iterrows()]
+                             for ii, row in existing_df.iterrows()]
             file_list = find_files(args.search_dir,
                                    existing_files=existing_list,
                                    verbose_flag=args.verbose)
             file_list, max_depth = subdirectory(file_list, args.search_dir)
             new_df = file_catalog(file_list, max_depth)
-            file_df = existing_df.append(new_df)
+            file_df = existing_df.append(new_df, ignore_index=True)
 
             print(file_df)
 
