@@ -24,6 +24,9 @@ class TestDC(unittest.TestCase):
         all_df = DC.search_in_new_directory(test_dir)
         self.assertTrue(len(all_df) == 7)
 
+
+    def test_search_in_directory_with_existing_catalog(self):
+
         input_file = os.path.join(test_dir, 'some_files.xlsx')
         some_df = DC.search_in_directory_with_existing_catalog(test_dir,
                                                                input_file)
