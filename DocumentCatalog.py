@@ -17,23 +17,26 @@ import datetime
 import win32com.client
 
 
-def search_in_new_directory(search_dir, verbose_flag=False):
+def search_in_new_directory(search_dir, exclusion_dirs=['_Links'], verbose_flag=False):
 
     # Search in a new directory
-    file_list = find_files(search_dir, verbose_flag=verbose_flag)
+    file_list = find_files(search_dir,
+                           exclusion_dirs=exclusion_dirs,
+                           verbose_flag=verbose_flag)
     file_list, max_depth = subdirectory(file_list, search_dir)
     file_df = file_catalog(file_list, max_depth)
 
     return file_df
     
 
-def search_in_directory_with_existing_catalog(search_dir, input_file, verbose_flag=False):
+def search_in_directory_with_existing_catalog(search_dir, input_file, exclusion_dirs=['_Links'], verbose_flag=False):
 
     # Search in directory with an existing catalog
     existing_df = load_existing(input_file)
     existing_list = [row['File Path']
                      for ii, row in existing_df.iterrows()]
     file_list = find_files(search_dir,
+                           exclusion_dirs=exclusion_dirs,
                            existing_files=existing_list,
                            verbose_flag=verbose_flag)
     file_list, max_depth = subdirectory(file_list, search_dir)
@@ -496,12 +499,21 @@ if __name__ == '__main__':
     parser.add_argument('--copy-key', type=str)
     parser.add_argument('--output-copy-dir', type=str)
     parser.add_argument('--allow-overwrite', action='store_true', default=False)
+    parser.add_argument('--exclude-directories', nargs='+')
     parser.add_argument('--link-dir', type=str)
     parser.add_argument('-l', '--create-links', action='store_true', default=False)
     parser.add_argument('--create-OSX-links', action='store_true', default=False)
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
 
     args = parser.parse_args()
+
+    # Set directories to exclude
+    if args.exclude_directories is None:
+        exclusion_dirs = ['_Links']
+    else:
+        exclusion_dirs = args.exclude_directories
+
+    print('Exclude Dirs: {}'.format(exclusion_dirs))
 
     if args.copy:
 
@@ -528,14 +540,16 @@ if __name__ == '__main__':
         if args.input_file is None:
 
             file_df = search_in_new_directory(args.search_dir,
-                                              args.verbose)
+                                              exclusion_dirs=exclusion_dirs,
+                                              verbose_flag=args.verbose)
             print(file_df)
             
         else:
 
             file_df = search_in_directory_with_existing_catalog(args.search_dir,
                                                                 args.input_file,
-                                                                args.verbose)
+                                                                exclusion_dirs=exclusion_dirs,
+                                                                verbose_flag=args.verbose)
             print(file_df)
 
             
