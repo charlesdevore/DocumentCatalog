@@ -154,8 +154,8 @@ def find_files(search_dir, existing_files=[],
     # Output file statistics
     if verbose_flag:
         print('--------------')
-        print('\t==> Found ' + str(counter) + ' files in: ' + search_dir + '\n')
-
+        print('\t==> Found {} new files in: {} \n'.format(counter, search_dir))
+        
     return file_list
 
 
@@ -513,7 +513,6 @@ if __name__ == '__main__':
     else:
         exclusion_dirs = args.exclude_directories
 
-    print('Exclude Dirs: {}'.format(exclusion_dirs))
 
     if args.copy:
 
