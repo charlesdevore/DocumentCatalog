@@ -42,7 +42,7 @@ def search_in_directory_with_existing_catalog(search_dir, input_file, exclusion_
     file_list, max_depth = subdirectory(file_list, search_dir)
     new_df = file_catalog(file_list, max_depth)
     file_df = existing_df.append(new_df, ignore_index=True)
-
+    
     return file_df
     
     
@@ -159,42 +159,60 @@ def find_files(search_dir, existing_files=[],
     return file_list
 
 
-def link(files_df, base_dir, verbose_flag=False):
+def link(files_df, link_dir, verbose_flag=False, allow_overwrite=False):
 
     """
     Create hard links in link directory corresponding to a unique
     hexadecimal representation of the file iterator number.
     """
 
-    link_dir = os.path.join(base_dir, '_Links')
     if not os.path.isdir(link_dir):
         os.mkdir(link_dir)
 
-
+    # Check length of link_dir to ensure that links will be under
+    # Excel limit of 256 characters. Assume max link value of 12.
+    if len(link_dir) > (256-12):
+        print('The link directory is {} characters long and may result in hyperlinks not working. Please find a  new link directory with a shorter path.'.format(len(link_dir)))
+        user_continue = raw_input('Continue? [Y/n]')
+        if not (lower(user_continue) == 'y' or lower(user_continue) == None):
+            return
+        
     link_counter = 0
 
-    for file in files_df.iterrows():
+    for ii,row in files_df.iterrows():
 
-        link_fname = 'file_{0:x}.{1:s}'.format(file.name, file['Extension'])
+        # The link file name starts with the letter 'f' and then is the
+        # DataFrame index integer expressed as hexadecimal with its
+        # extension (Windows freaks out if extension is omitted).
+        
+        link_fname = 'f_{0:x}{1:s}'.format(row.name, row['Extension'])
         link_path = os.path.join(link_dir, link_fname)
 
-        long_name = long_file_name(file['File Path'])
+        long_name = long_file_name(row['File Path'])
 
+
+        if os.path.isfile(link_path) and not allow_overwrite:
+            if verbose_flag:
+                print('Warning: Link already exists.\n\t{}\n\t{}'.format(long_name, link_path))
+            continue
+        
         try:
             os.link(long_name, link_path)
             link_counter += 1
 
         except:
-            print('Error making link:\n{}\n{}'.format(long_name, link_path))
+            print('Error: Cannot make link.\n\t{}\n\t{}'.format(long_name, link_path))
+            continue
 
         # Save the link paths and add hyperlinks for Excel
-        file['Link Path'] = link_path
+        row['Link Path'] = link_path
 
-        file['File Link'] = '=hyperlink("{}","File")'.format(
-            file['Link Path'])
+        row['File Link'] = '=hyperlink("{}","File")'.format(
+            row['Link Path'])
 
-        file['Directory Link'] = '=hyperlink("{}","Directory")'.format(
-            file['Directory'])
+        row['Directory Link'] = '=hyperlink("{}","Directory")'.format(
+            row['Directory'])
+        
 
     if verbose_flag:
         print('{} links out of {} added in:\n\t{}\n'.format(link_counter, len(files_df), link_dir))
@@ -309,7 +327,7 @@ def long_file_name(fname):
 
     if(fname.lower().startswith('c:')):
 
-        long_name = r'\\?\{}'.format(fname)
+        long_name = r'\\?\{}'.format(os.path.normpath(fname))
 
     elif(fname.startswith(r'\\')):
 
@@ -554,9 +572,18 @@ if __name__ == '__main__':
             
     if args.create_links:
 
-        # Add links
-        pass
-        
+        if args.link_dir is None:
+            if args.search_dir is not None:
+                link_dir = os.path.join(args.search_dir, '_Links')
+                link(file_df, link_dir, verbose_flag=args.verbose)
+                
+            else:
+                print('Error: Link directory and search directory not specified.')
+
+        else:
+            link_dir = args.link_dir
+            link(file_df, link_dir, verbose_flag=args.verbose)
+
 
         if args.create_OSX_links:
 
