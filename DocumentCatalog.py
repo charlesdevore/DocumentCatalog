@@ -175,8 +175,15 @@ def link(files_df, link_dir, verbose_flag=False, allow_overwrite=False):
         print('The link directory is {} characters long and may result in hyperlinks not working. Please find a  new link directory with a shorter path.'.format(len(link_dir)))
         user_continue = raw_input('Continue? [Y/n]')
         if not (lower(user_continue) == 'y' or lower(user_continue) == None):
-            return
+            return files_df
         
+    # Add columns for the link path, file link, and directory link if
+    # not already existing in the dataframe
+    new_cols = ['Link Path', 'File Link', 'Directory Link']
+    for col in new_cols:
+        if col not in files_df.columns:
+            files_df[col] = ''
+
     link_counter = 0
 
     for ii,row in files_df.iterrows():
@@ -205,19 +212,18 @@ def link(files_df, link_dir, verbose_flag=False, allow_overwrite=False):
             continue
 
         # Save the link paths and add hyperlinks for Excel
-        row['Link Path'] = link_path
+        files_df.loc[ii, 'Link Path'] = link_path
 
-        row['File Link'] = '=hyperlink("{}","File")'.format(
-            row['Link Path'])
+        files_df.loc[ii, 'File Link'] = '=hyperlink("{}","File")'.format(link_path)
 
-        row['Directory Link'] = '=hyperlink("{}","Directory")'.format(
-            row['Directory'])
+        dir_path = row['Directory']
+        files_df.loc[ii, 'Directory Link'] = '=hyperlink("{}","Directory")'.format(dir_path)
         
 
     if verbose_flag:
         print('{} links out of {} added in:\n\t{}\n'.format(link_counter, len(files_df), link_dir))
 
-    return
+    return files_df
 
 
 def file_catalog(files_list, max_depth):
@@ -589,14 +595,14 @@ if __name__ == '__main__':
         if args.link_dir is None:
             if args.search_dir is not None:
                 link_dir = os.path.join(args.search_dir, '_Links')
-                link(files_df, link_dir, verbose_flag=args.verbose)
+                files_df = link(files_df, link_dir, verbose_flag=args.verbose)
                 
             else:
                 print('Error: Link directory and search directory not specified.')
 
         else:
             link_dir = args.link_dir
-            link(files_df, link_dir, verbose_flag=args.verbose)
+            files_df = link(files_df, link_dir, verbose_flag=args.verbose)
 
 
         if args.create_OSX_links:
