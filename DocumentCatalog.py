@@ -118,6 +118,9 @@ def find_files(search_dir, existing_files=[],
     excluding directories, and to show verbose output.
     """
 
+    # Remove any files that don't exist from existing files list
+    existing_files = [ef for ef in existing_files if os.path.isfile(ef)]
+    
     files_list = []
     counter = 0
 
@@ -617,5 +620,5 @@ if __name__ == '__main__':
         export(files_df, fname, sheet_name='Files', allow_overwrite=args.allow_overwrite)
         
             
-    print(files_df)
+    # print(files_df)
 
