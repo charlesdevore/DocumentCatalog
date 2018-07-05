@@ -247,14 +247,8 @@ def file_catalog(file_list, max_depth):
 
     files_df = pd.DataFrame(new_file_list)
 
-    # # Order columns
-    # cols = ['File Path'] + keys + ['Filename', 'Extension',
-    #                                'File Size', 'Link Path',
-    #                                'Directory', 'File Link',
-    #                                'Directory Link']
-
-    # file_catalog = file_catalog[cols]
-
+    files_df = order_file_columns(files_df)
+    
     return files_df
 
 
@@ -319,6 +313,25 @@ def export(file_catalog, email_catalog, fname, allow_overwrite=False):
     except:
         return -1
 
+
+def order_file_columns(files_df):
+
+    cols = list(files_df)
+
+    sub_dir_cols = [c for c in cols if c.startswith('Sub-Directory')]
+
+    sub_dir_cols.sort()
+
+    ordered_cols =  ['File Path'] \
+                    + sub_dir_cols \
+                    + ['Filename', 'Extension', 'File Size']
+
+    # Add any remaing columns
+    ordered_cols += set(cols) - set(ordered_cols)
+
+    return files_df[ordered_cols]
+
+    
 
 def long_file_name(fname):
 
