@@ -298,20 +298,26 @@ def subdirectory(files_list, root_dir):
 
 
 
-def export(file_catalog, email_catalog, fname, allow_overwrite=False):
+def export(catalog_df, fname, sheet_name='Files', allow_overwrite=False):
 
-    # Export the file catalog to an Excel workbook
+    """Export the catalog to an Excel workbook. Take as input either a
+    file catalog or an email catalog and save to a specific sheet in the
+    workbook."""
 
     try:
-        writer = pd.ExcelWriter(fname)
-        file_catalog.to_excel(writer, 'Files')
-        email_catalog.to_excel(writer, 'Emails')
-        writer.save()
+        if (allow_overwrite and os.path.isfile(fname)) or not os.path.isfile(fname):
+            writer = pd.ExcelWriter(fname)
+            catalog_df.to_excel(writer, sheet_name)
+            writer.save()
 
-        return 1
+        else:
+            print('Error: Output file already exists. Enable overwrite or choose a new file name.')
+            # new_fname = raw_input('New file name: ')
+            # export(catalog_df, new_fname, sheet_name=sheet_name, allow_overwrite=allow_overwrite)
 
-    except:
-        return -1
+    except Exception as err:
+        print('Error exporting catalog\nFile Name: {}\nSheet Name: {}'.format(fname, sheet_name))
+        print(err)
 
 
 def order_file_columns(files_df):
@@ -330,7 +336,6 @@ def order_file_columns(files_df):
     ordered_cols += set(cols) - set(ordered_cols)
 
     return files_df[ordered_cols]
-
     
 
 def long_file_name(fname):
@@ -572,16 +577,12 @@ if __name__ == '__main__':
             files_df = search_in_new_directory(args.search_dir,
                                               exclusion_dirs=exclusion_dirs,
                                               verbose_flag=args.verbose)
-            print(files_df)
-            
         else:
 
             files_df = search_in_directory_with_existing_catalog(args.search_dir,
                                                                 args.input_file,
                                                                 exclusion_dirs=exclusion_dirs,
                                                                 verbose_flag=args.verbose)
-            print(files_df)
-
             
     if args.create_links:
 
@@ -606,14 +607,9 @@ if __name__ == '__main__':
 
     if args.output:
 
-        if args.input_dir is None:
-
-            # Build output with a new file
-            pass
-        
-        else:
-
-            # Build output with existing file
-            pass
+        fname = args.output_file
+        export(files_df, fname, sheet_name='Files', allow_overwrite=args.allow_overwrite)
         
             
+    print(files_df)
+
