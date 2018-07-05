@@ -20,13 +20,13 @@ import win32com.client
 def search_in_new_directory(search_dir, exclusion_dirs=['_Links'], verbose_flag=False):
 
     # Search in a new directory
-    file_list = find_files(search_dir,
+    files_list = find_files(search_dir,
                            exclusion_dirs=exclusion_dirs,
                            verbose_flag=verbose_flag)
-    file_list, max_depth = subdirectory(file_list, search_dir)
-    file_df = file_catalog(file_list, max_depth)
+    files_list, max_depth = subdirectory(files_list, search_dir)
+    files_df = file_catalog(files_list, max_depth)
 
-    return file_df
+    return files_df
     
 
 def search_in_directory_with_existing_catalog(search_dir, input_file, exclusion_dirs=['_Links'], verbose_flag=False):
@@ -35,15 +35,15 @@ def search_in_directory_with_existing_catalog(search_dir, input_file, exclusion_
     existing_df = load_existing(input_file)
     existing_list = [row['File Path']
                      for ii, row in existing_df.iterrows()]
-    file_list = find_files(search_dir,
+    files_list = find_files(search_dir,
                            exclusion_dirs=exclusion_dirs,
                            existing_files=existing_list,
                            verbose_flag=verbose_flag)
-    file_list, max_depth = subdirectory(file_list, search_dir)
-    new_df = file_catalog(file_list, max_depth)
-    file_df = existing_df.append(new_df, ignore_index=True)
+    files_list, max_depth = subdirectory(files_list, search_dir)
+    new_df = file_catalog(files_list, max_depth)
+    files_df = existing_df.append(new_df, ignore_index=True)
     
-    return file_df
+    return files_df
     
     
 def load_existing(fname):
@@ -118,7 +118,7 @@ def find_files(search_dir, existing_files=[],
     excluding directories, and to show verbose output.
     """
 
-    file_list = []
+    files_list = []
     counter = 0
 
     for root, dirs, files in os.walk(search_dir):
@@ -143,7 +143,7 @@ def find_files(search_dir, existing_files=[],
 
                 file['File Size (bytes)'] = os.path.getsize(file_path)
 
-                file_list.append(file)
+                files_list.append(file)
                 counter += 1
 
         # Exclude directories based on the exclusion_dirs list.
@@ -156,7 +156,7 @@ def find_files(search_dir, existing_files=[],
         print('--------------')
         print('\t==> Found {} new files in: {} \n'.format(counter, search_dir))
         
-    return file_list
+    return files_list
 
 
 def link(files_df, link_dir, verbose_flag=False, allow_overwrite=False):
@@ -220,7 +220,7 @@ def link(files_df, link_dir, verbose_flag=False, allow_overwrite=False):
     return
 
 
-def file_catalog(file_list, max_depth):
+def file_catalog(files_list, max_depth):
 
     # DC.file_catalog() builds a DataFrame catalog corresponding to the
     # file information.
@@ -229,9 +229,9 @@ def file_catalog(file_list, max_depth):
     for i in range(1, max_depth+1):
         keys.append('Sub-Directory {}'.format(i))
 
-    new_file_list = []
+    new_files_list = []
 
-    for file in file_list:
+    for file in files_list:
 
         try:
             for i in range(0, len(file['Sub-Directories'])):
@@ -240,28 +240,28 @@ def file_catalog(file_list, max_depth):
 
             del(file['Sub-Directories'])
 
-            new_file_list.append(file)
+            new_files_list.append(file)
 
         except:
             print(file['File Path'])
 
-    files_df = pd.DataFrame(new_file_list)
+    files_df = pd.DataFrame(new_files_list)
 
     files_df = order_file_columns(files_df)
     
     return files_df
 
 
-def subdirectory(file_list, root_dir):
+def subdirectory(files_list, root_dir):
 
     # Compute the individual sub-directories based on the root
-    # directory. Store the sub-directories in file_list as list in the
+    # directory. Store the sub-directories in files_list as list in the
     # file's dictionary. Also output the maximum sub-directory depth.
 
     max_depth = 0
-    new_file_list = []
+    new_files_list = []
 
-    for file in file_list:
+    for file in files_list:
 
         try:
             rel_path = os.path.relpath(file['File Path'], root_dir)
@@ -287,14 +287,14 @@ def subdirectory(file_list, root_dir):
 
             file['Sub-Directories'] = subdirs
 
-            new_file_list.append(file)
+            new_files_list.append(file)
 
             max_depth = max([max_depth, len(file['Sub-Directories'])])
 
         except:
             print(file['File Path'])
 
-    return new_file_list, max_depth
+    return new_files_list, max_depth
 
 
 
@@ -569,18 +569,18 @@ if __name__ == '__main__':
 
         if args.input_file is None:
 
-            file_df = search_in_new_directory(args.search_dir,
+            files_df = search_in_new_directory(args.search_dir,
                                               exclusion_dirs=exclusion_dirs,
                                               verbose_flag=args.verbose)
-            print(file_df)
+            print(files_df)
             
         else:
 
-            file_df = search_in_directory_with_existing_catalog(args.search_dir,
+            files_df = search_in_directory_with_existing_catalog(args.search_dir,
                                                                 args.input_file,
                                                                 exclusion_dirs=exclusion_dirs,
                                                                 verbose_flag=args.verbose)
-            print(file_df)
+            print(files_df)
 
             
     if args.create_links:
@@ -588,14 +588,14 @@ if __name__ == '__main__':
         if args.link_dir is None:
             if args.search_dir is not None:
                 link_dir = os.path.join(args.search_dir, '_Links')
-                link(file_df, link_dir, verbose_flag=args.verbose)
+                link(files_df, link_dir, verbose_flag=args.verbose)
                 
             else:
                 print('Error: Link directory and search directory not specified.')
 
         else:
             link_dir = args.link_dir
-            link(file_df, link_dir, verbose_flag=args.verbose)
+            link(files_df, link_dir, verbose_flag=args.verbose)
 
 
         if args.create_OSX_links:
