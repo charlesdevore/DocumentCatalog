@@ -581,7 +581,7 @@ if __name__ == '__main__':
             due to improper specifications.""")
         
 
-    else
+    else:
 
         if args.search_dir is not None:
 
