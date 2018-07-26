@@ -37,6 +37,7 @@ def search_in_directory_with_existing_catalog(search_dir, input_file,
 
     # Search in directory with an existing catalog
     existing_df = load_existing(input_file)
+    existing_cols = list(existing_df)
     existing_list = [row['File Path']
                      for ii, row in existing_df.iterrows()]
     files_list = find_files(search_dir, exclusion_dirs=exclusion_dirs,
@@ -46,6 +47,8 @@ def search_in_directory_with_existing_catalog(search_dir, input_file,
     files_list, max_depth = subdirectory(files_list, search_dir)
     new_df = file_catalog(files_list, max_depth)
     files_df = existing_df.append(new_df, ignore_index=True)
+    ordered_cols = existing_cols + list(set(list(files_df)) - set(existing_cols))
+    files_df = files_df[ordered_cols]
     
     return files_df
     
