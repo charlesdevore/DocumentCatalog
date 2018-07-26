@@ -120,7 +120,9 @@ def find_files(search_dir, existing_files=[],
 
     # Remove any files that don't exist from existing files list
     existing_files = [ef for ef in existing_files if os.path.isfile(ef)]
-    
+    if verbose_flag:
+        print('Searching with {} existing files.'.format(len(existing_files)))
+        
     files_list = []
     counter = 0
 
@@ -128,9 +130,17 @@ def find_files(search_dir, existing_files=[],
         for f in files:
             file_path = os.path.join(root, f)
 
-            # existing_files should be a list of absolute paths
-            if not any([os.path.samefile(file_path, ef) for ef in existing_files]):
-
+            # existing_files is a list of absolute paths. Use a string
+            # comparison to quickly check the lower case for matches
+            # and if a match is found, use the slower
+            # os.path.samefile() function
+            if (not file_path.lower() in [ef.lower() for ef in
+                                          existing_files] or not
+                any([os.path.samefile(file_path,
+                                      ef) for ef in existing_files
+                     if ef.lower() is
+                     file_path.lower()])):
+                
                 # The file extension is the second entry of the split list
                 ext = os.path.splitext(f)[1]
 
