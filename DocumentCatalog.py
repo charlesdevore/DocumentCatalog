@@ -564,7 +564,10 @@ if __name__ == '__main__':
         if args.copy_dir is not None and args.search_dir is not None:
 
             # Copy files from search directory to copy directory
-            pass
+            copy_files(args.search_dir,
+                       args.copy_dir,
+                       allow_dest_exist=args.allow_overwrite)
+
 
         elif args.copy_key is not None and args.output_copy_dir is not None:
 
@@ -577,48 +580,49 @@ if __name__ == '__main__':
             print("""Error: Copy requested but cannot complete
             due to improper specifications.""")
         
-            
-    
-    if args.search_dir is not None:
 
-        if args.input_file is None:
+    else
 
-            files_df = search_in_new_directory(args.search_dir,
-                                              exclusion_dirs=exclusion_dirs,
-                                              verbose_flag=args.verbose)
-        else:
+        if args.search_dir is not None:
 
-            files_df = search_in_directory_with_existing_catalog(args.search_dir,
-                                                                args.input_file,
-                                                                exclusion_dirs=exclusion_dirs,
-                                                                verbose_flag=args.verbose)
-            
-    if args.create_links:
+            if args.input_file is None:
 
-        if args.link_dir is None:
-            if args.search_dir is not None:
-                link_dir = os.path.join(args.search_dir, '_Links')
-                files_df = link(files_df, link_dir, verbose_flag=args.verbose)
-                
+                files_df = search_in_new_directory(args.search_dir,
+                                                   exclusion_dirs=exclusion_dirs,
+                                                   verbose_flag=args.verbose)
             else:
-                print('Error: Link directory and search directory not specified.')
 
-        else:
-            link_dir = args.link_dir
-            files_df = link(files_df, link_dir, verbose_flag=args.verbose)
+                files_df = search_in_directory_with_existing_catalog(args.search_dir,
+                                                                     args.input_file,
+                                                                     exclusion_dirs=exclusion_dirs,
+                                                                     verbose_flag=args.verbose)
+
+        if args.create_links:
+
+            if args.link_dir is None:
+                if args.search_dir is not None:
+                    link_dir = os.path.join(args.search_dir, '_Links')
+                    files_df = link(files_df, link_dir, verbose_flag=args.verbose)
+
+                else:
+                    print('Error: Link directory and search directory not specified.')
+
+            else:
+                link_dir = args.link_dir
+                files_df = link(files_df, link_dir, verbose_flag=args.verbose)
 
 
-        if args.create_OSX_links:
+            if args.create_OSX_links:
 
-            # Add OSX links
-            pass
+                # Add OSX links
+                pass
 
 
-    if args.output:
+        if args.output:
 
-        fname = args.output_file
-        export(files_df, fname, sheet_name='Files', allow_overwrite=args.allow_overwrite)
-        
+            fname = args.output_file
+            export(files_df, fname, sheet_name='Files', allow_overwrite=args.allow_overwrite)
+
             
     # print(files_df)
 
