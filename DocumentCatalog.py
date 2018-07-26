@@ -10,6 +10,7 @@ June 2018
 """
 
 import os
+import sys
 import argparse
 import pandas as pd
 import platform
@@ -128,6 +129,7 @@ def find_files(search_dir, existing_files=[],
         
     if verbose_flag:
         print('Searching with {} existing files.'.format(len(existing_files)))
+        sys.stdout.flush()
         
     files_list = []
     counter = 0
@@ -565,7 +567,7 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--create-links', action='store_true', default=False)
     parser.add_argument('--create-OSX-links', action='store_true', default=False)
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
-    parser.add_argument('--check-existing-file-paths', action='store_true', default=True)
+    parser.add_argument('--do-not-check-existing-file-paths', action='store_true', default=False)
 
     args = parser.parse_args()
 
@@ -607,15 +609,14 @@ if __name__ == '__main__':
                 files_df = search_in_new_directory(args.search_dir,
                                                    exclusion_dirs=exclusion_dirs,
                                                    verbose_flag=args.verbose,
-                                                   check_existing_file_paths=args.check_existing_file_paths)
+                                                   check_existing_file_paths=not args.do_not_check_existing_file_paths)
             else:
 
-                files_df =
-                search_in_directory_with_existing_catalog(args.search_dir,
-                                                          args.input_file,
-                                                          exclusion_dirs=exclusion_dirs,
-                                                          verbose_flag=args.verbose,
-                                                          check_existing_file_paths=args.check_existing_file_paths)
+                files_df = search_in_directory_with_existing_catalog(args.search_dir,
+                                                                     args.input_file,
+                                                                     exclusion_dirs=exclusion_dirs,
+                                                                     verbose_flag=args.verbose,
+                                                                     check_existing_file_paths=not args.do_not_check_existing_file_paths)
 
         if args.create_links:
 
