@@ -17,28 +17,31 @@ import datetime
 import win32com.client
 
 
-def search_in_new_directory(search_dir, exclusion_dirs=['_Links'], verbose_flag=False):
+def search_in_new_directory(search_dir, exclusion_dirs=['_Links'],
+                            verbose_flag=False, check_existing_file_paths=True):
 
     # Search in a new directory
-    files_list = find_files(search_dir,
-                           exclusion_dirs=exclusion_dirs,
-                           verbose_flag=verbose_flag)
+    files_list = find_files(search_dir, exclusion_dirs=exclusion_dirs,
+                            verbose_flag=verbose_flag,
+                            check_existing_file_paths=check_existing_file_paths)
     files_list, max_depth = subdirectory(files_list, search_dir)
     files_df = file_catalog(files_list, max_depth)
 
     return files_df
     
 
-def search_in_directory_with_existing_catalog(search_dir, input_file, exclusion_dirs=['_Links'], verbose_flag=False):
+def search_in_directory_with_existing_catalog(search_dir, input_file,
+                                              exclusion_dirs=['_Links'], verbose_flag=False,
+                                              check_existing_file_paths=True):
 
     # Search in directory with an existing catalog
     existing_df = load_existing(input_file)
     existing_list = [row['File Path']
                      for ii, row in existing_df.iterrows()]
-    files_list = find_files(search_dir,
-                           exclusion_dirs=exclusion_dirs,
-                           existing_files=existing_list,
-                           verbose_flag=verbose_flag)
+    files_list = find_files(search_dir, exclusion_dirs=exclusion_dirs,
+                            existing_files=existing_list,
+                            verbose_flag=verbose_flag,
+                            check_existing_file_paths=check_existing_file_paths)
     files_list, max_depth = subdirectory(files_list, search_dir)
     new_df = file_catalog(files_list, max_depth)
     files_df = existing_df.append(new_df, ignore_index=True)
@@ -103,7 +106,8 @@ def copy_files(source_dir, dest_dir, batch_file = 'run_DC_copy.bat', allow_dest_
 
 
 def find_files(search_dir, existing_files=[],
-               exclusion_dirs=['_Links'], verbose_flag=False):
+               exclusion_dirs=['_Links'], verbose_flag=False,
+               check_existing_file_paths=True):
 
     """
     find_files(search_dir)
@@ -119,7 +123,9 @@ def find_files(search_dir, existing_files=[],
     """
 
     # Remove any files that don't exist from existing files list
-    existing_files = [ef for ef in existing_files if os.path.isfile(ef)]
+    if check_existing_file_paths:
+        existing_files = [ef for ef in existing_files if os.path.isfile(ef)]
+        
     if verbose_flag:
         print('Searching with {} existing files.'.format(len(existing_files)))
         
@@ -559,6 +565,7 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--create-links', action='store_true', default=False)
     parser.add_argument('--create-OSX-links', action='store_true', default=False)
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
+    parser.add_argument('--check-existing-file-paths', action='store_true', default=True)
 
     args = parser.parse_args()
 
@@ -599,13 +606,16 @@ if __name__ == '__main__':
 
                 files_df = search_in_new_directory(args.search_dir,
                                                    exclusion_dirs=exclusion_dirs,
-                                                   verbose_flag=args.verbose)
+                                                   verbose_flag=args.verbose,
+                                                   check_existing_file_paths=args.check_existing_file_paths)
             else:
 
-                files_df = search_in_directory_with_existing_catalog(args.search_dir,
-                                                                     args.input_file,
-                                                                     exclusion_dirs=exclusion_dirs,
-                                                                     verbose_flag=args.verbose)
+                files_df =
+                search_in_directory_with_existing_catalog(args.search_dir,
+                                                          args.input_file,
+                                                          exclusion_dirs=exclusion_dirs,
+                                                          verbose_flag=args.verbose,
+                                                          check_existing_file_paths=args.check_existing_file_paths)
 
         if args.create_links:
 
