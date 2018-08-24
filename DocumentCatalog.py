@@ -305,7 +305,7 @@ def find_duplicates(files_list, hash_function=hashlib.sha1(), buffer_size=65536)
 
         file['Checksum'] = checksum
 
-        file['Duuplicate'] = True if checksum in file_hash_map else False
+        file['Duplicate'] = True if checksum in file_hash_map else False
 
         file_hash_map[checksum] = file['File Path']
 
