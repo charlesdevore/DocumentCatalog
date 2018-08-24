@@ -14,6 +14,7 @@ import sys
 import argparse
 import pandas as pd
 import platform
+import hashlib
 import datetime
 import win32com.client
 
@@ -26,6 +27,7 @@ def search_in_new_directory(search_dir, exclusion_dirs=['_Links'],
                             verbose_flag=verbose_flag,
                             check_existing_file_paths=check_existing_file_paths)
     files_list, max_depth = subdirectory(files_list, search_dir)
+    files_list = find_duplicates(files_list)
     files_df = file_catalog(files_list, max_depth)
 
     return files_df
@@ -45,6 +47,7 @@ def search_in_directory_with_existing_catalog(search_dir, input_file,
                             verbose_flag=verbose_flag,
                             check_existing_file_paths=check_existing_file_paths)
     files_list, max_depth = subdirectory(files_list, search_dir)
+    files_list = find_duplicates(files_list)
     new_df = file_catalog(files_list, max_depth)
     files_df = existing_df.append(new_df, ignore_index=True)
     ordered_cols = existing_cols + list(set(list(files_df)) - set(existing_cols))
@@ -280,6 +283,35 @@ def file_catalog(files_list, max_depth):
     files_df = order_file_columns(files_df)
     
     return files_df
+
+
+def find_duplicates(files_list, hash_function=hashlib.sha1(), buffer_size=65536):
+
+    # Find duplicate files by reading each file anc computing a
+    # hash. The default hash function is SHA1.
+
+    file_hash_map = {}
+    new_files_list = []
+    
+    for file in files_list:
+        with open(file['File Path'], 'rb') as f:
+            while True:
+                data = f.read(buffer_size)
+                if not data:
+                    break
+                hash_function.update(data)
+
+        checksum = hash_function.hexdigest()
+
+        file['Checksum'] = checksum
+
+        file['Duuplicate'] = True if checksum in file_hash_map else False
+
+        file_hash_map[checksum] = file['File Path']
+
+        new_files_list.append(file)
+
+    return new_files_list
 
 
 def subdirectory(files_list, root_dir):
