@@ -294,15 +294,9 @@ def find_duplicates(files_list, hash_function=hashlib.sha1(), buffer_size=65536)
     new_files_list = []
     
     for file in files_list:
-        with open(file['File Path'], 'rb') as f:
-            while True:
-                data = f.read(buffer_size)
-                if not data:
-                    break
-                hash_function.update(data)
-
-        checksum = hash_function.hexdigest()
-
+        checksum = compute_checksum_for_file(file['File Path'],
+                                             hash_function, buffer_size)
+        
         file['Checksum'] = checksum
 
         file['Duplicate'] = True if checksum in file_hash_map else False
@@ -313,6 +307,18 @@ def find_duplicates(files_list, hash_function=hashlib.sha1(), buffer_size=65536)
 
     return new_files_list
 
+
+def compute_checksum_for_file(file_path, hash_function, buffer_size):
+
+    h = hashlib.new(hash_function.name)
+    
+    with open(file_path, 'rb') as f:
+        data = f.read(buffer_size)
+        while data:
+            h.update(data)
+            data = f.read(buffer_size)
+
+    return h.hexdigest()
 
 def subdirectory(files_list, root_dir):
 
