@@ -18,6 +18,169 @@ import hashlib
 import datetime
 import win32com.client
 
+class CatalogProperties(object):
+    
+    def __init__(self, args=None):
+
+        # Default parameters
+        # search_dir is the directory to search for new files in.
+        self.search_dirs = [os.getcwd()]
+
+        # base_dir is the base pivot directory to use for determining
+        # subdirectories from.
+        self.base_dir = os.getcwd()
+
+        # Default parameters for the checksum calculation
+        self.hash_function = hashlib.sha1()
+        self.buffer_size = 65536
+
+        # Use input args to set Catalog parameters
+        if args:
+            self.set_input_args(args)
+
+    def set_input_args(self, args):
+        pass
+
+
+class FileCatalog(object):
+
+    def __init__(self, catalog_properties):
+
+        self.catalog_properties = catalog_properties
+
+        self._files = []
+        self.load_files()
+
+
+
+    def load_files(self):
+
+        file_objs_list = []
+        
+        self.load_existing_catalog(file_objs_list)
+        self.search_for_new_files(file_objs_list)
+
+        # Add computed properties to files
+        self.add_links()
+        self.add_checksum()
+        self.check_duplicates()
+
+    def add_file(self, file_path):
+        
+        file_obj = File(file_path)
+
+        if file_obj not in self._files:
+            self._files.append(file_obj)
+            
+    def load_existing_catalog(self):
+        pass
+
+    def search_for_new_files(self):
+
+        for search_dir in self.catalog_properties.search_dirs:
+            for root, dirs, files in os.walk(search_dir):
+                for f in files:
+                    file_path = os.path.join(root, f)
+                    self.add_file(file_path)
+
+                for exclude_dir in self.catalog_properties.exclude_dirs:
+                    if exclude_dir in dirs:
+                        dirs.remove(exclude_dir)
+
+    def add_links(self):
+
+        link_dir = self.catalog_properties.link_dir
+
+        for file_obj in self._files:
+            file_obj.add_link(link_dir)
+
+    def add_checksum(self):
+        pass
+
+    def check_duplicates(self):
+        pass
+    
+
+class File(object):
+    def __init__(self, path):
+
+        # Check path exists
+        if not os.path.isfile(path):
+            raise InputError
+
+        # Assign constructor input parameters
+        self.path = path
+
+        # Set basic properties
+        self.name = self.find_file_name()
+        self.extension = self.find_extension()
+        self.size = self.find_file_size()
+
+        self.hash_function = None
+        self.buffer_size = None
+        self.checksum = None
+        self.link_dir = None
+        self.link_path = None
+        self.link = None
+
+    def __str__(self):
+        
+        return str(self.__dict__)
+
+    def __eq__(self, other):
+        # Test to see if the two paths the same. First check using the
+        # faster string comparison of the lower case path and if true
+        # then check using the slower os based method.
+        if self.path.lower() is other.path.lower():
+            return os.path.samefile(self.path, other.path)
+        else:
+            return False
+
+    def find_file_name(self):
+
+        return os.path.split(self.path)[1]
+
+    def find_extension(self):
+
+        return os.path.splitext(self.name)[1]
+
+    def find_file_size(self):
+
+        return os.path.getsize(self.path)
+
+    def get_checksum(self, hash_function, buffer_size):
+
+        if any([hash_function is not self.hash_function,
+                not self.checksum]):
+
+            self.hash_function = hash_function
+            self.buffer_size = buffer_size
+            self.checksum = compute_checksum_for_file(self.path,
+                                                      self.hash_function,
+                                                      self.buffer_size)
+
+        return self.checksum
+
+    def add_link(self, link_dir):
+
+        if not self.link or self.link_dir is link_dir:
+
+            self.link_dir = link_dir
+            self.link_name = self.find_link_name() + self.extension
+
+            long_name = long_file_name(self.path)
+
+            os.link(long_name, self.link_path())
+
+            self.link = '=hyperlink("{}","File")'.format(self.link_path)
+
+    def link_path(self):
+        return os.path.join(self.link_dir, self.link_name)
+
+    def find_link_name(self):
+        h = hashlib.new(hashlib.sha1().name)
+        h.update(self.path.encode())
+        return h.hexdigest()
 
 def search_in_new_directory(search_dir, exclusion_dirs=['_Links'],
                             verbose_flag=False, check_existing_file_paths=True):
