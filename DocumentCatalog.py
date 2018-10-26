@@ -19,14 +19,40 @@ import datetime
 import win32com.client
 
 class CatalogProperties(object):
-    
+    """CatalogProperties provides an interface for FileCatalog.
+
+This class manages the properties for constructing a catalog and
+provides an interface between argparse command line arguments and the
+required catalog properties. Manages default behavior and provides
+input error checking.
+
+Args:
+    args (:obj:): A parser object that contains the argument values 
+        from the command line using argparse.
+
+Attributes:
+    search_dirs (list of strings): List of search directory 
+        paths of where to search for files.  
+    existing_catalog (str): Filename or path to filename containing a
+        spreadsheet with an existing document catalog.
+    output_file (str): Filename or path where the output spreadsheet
+        should be saved.
+    base_dir (str): The base directory that should be used as the 
+        pivot to compute the subdirectory columns.
+    link (bool): Whether hard links should be constructed.
+    link_dir (str): Location where hard links should be saved.
+    exclude_dirs (list of strings): List of directories to exclude 
+        from file search. Stored as relative paths and used to 
+        exclude through entire search path.
+    hash_function (:obj: hashlib.function): The hash function used
+        to compute the checksum to differentiate unique files.
+    buffer_size (int): The number of bytes to use as a buffer when
+        reading the file for computation of the checksum.
+    """
+
     def __init__(self, args=None):
 
-        # Default parameters
-        # search_dir is the directory to search for new files in.
         self.search_dirs = [os.getcwd()]
-
-        # existing_catalog
         self.existing_catalog = None
 
         # output_file is the name of the output filename or path of
@@ -34,24 +60,12 @@ class CatalogProperties(object):
         # xlsx. If output_file is None, then no output is generated.
         self.output_file = None
 
-        # base_dir is the base pivot directory to use for determining
-        # subdirectories from.
         self.base_dir = os.getcwd()
 
-        # link is a flag to indicate whether symlinks should be added
-        # to the files.
         self.link = False
-        
-        # link_dir is the location for links used in the Excel
-        # spreadsheet. These links are sym links that point to the
-        # exiting file location.
         self.link_dir = os.path.join(os.getcwd(), '_Links')
-
-        # exclude_dirs is a list of relative directory names that
-        # should be excluded from each subdirectory.
         self.exclude_dirs = ['_Links']
-        
-        # Default parameters for the checksum calculation
+
         self.hash_function = hashlib.sha1()
         self.buffer_size = 65536
 
@@ -103,17 +117,32 @@ class CatalogProperties(object):
 
 
 class FileCatalog(object):
+    """FileCatalog organizes File objects.
 
+FileCatalog provides a collection of File objects corresponding to a
+particular search operation. The parameters of the search are
+specified by the CatalogProperties object that is taken as input.
+
+Args:
+    catalog_properties (:CatalogProperties:): Parameters for 
+        constructing FileCatalog.
+
+Attributes:
+    catalog_properties (:CatalogProperties:): Same as input.
+    files (list[:File:]): A list of file objects corresponding
+        to each file contained within the catalog. 
+
+    """
     def __init__(self, catalog_properties):
 
         self.catalog_properties = catalog_properties
 
-        self._files = []
+        self.files = []
         self.load_files()
         self.export()
 
     def __len__(self):
-        return len(self._files)
+        return len(self.files)
 
     def load_files(self):
 
@@ -129,8 +158,8 @@ class FileCatalog(object):
         
         file_obj = File(file_path)
 
-        if file_obj not in self._files:
-            self._files.append(file_obj)
+        if file_obj not in self.files:
+            self.files.append(file_obj)
             
     def load_existing_catalog(self):
         pass
@@ -175,7 +204,7 @@ class FileCatalog(object):
                     self.link = False
                     return
 
-            for file_obj in self._files:
+            for file_obj in self.files:
                 file_obj.add_link(link_dir)
 
                 
@@ -184,7 +213,7 @@ class FileCatalog(object):
         hash_function = self.catalog_properties.hash_function
         buffer_size = self.catalog_properties.buffer_size
 
-        for file_obj in self._files:
+        for file_obj in self.files:
             file_obj.set_checksum(hash_function, buffer_size)
 
     def check_duplicates(self):
@@ -193,7 +222,7 @@ class FileCatalog(object):
         hash_function = self.catalog_properties.hash_function
         buffer_size = self.catalog_properties.buffer_size
 
-        for file_obj in self._files:
+        for file_obj in self.files:
             chksum = file_obj.get_checksum(hash_function, buffer_size)
 
             if chksum in hash_map:
@@ -208,7 +237,7 @@ class FileCatalog(object):
         if self.catalog_properties.base_dir:
             return self.catalog_properties.base_dir
         else:
-            paths = [f.path for f in self._files]
+            paths = [f.path for f in self.files]
             return os.path.commonpath(paths)
 
     def export(self):
@@ -220,7 +249,7 @@ class FileCatalog(object):
 
         base_dir = self.get_base_dir()
 
-        files = [f.as_dict(base_dir) for f in self._files]
+        files = [f.as_dict(base_dir) for f in self.files]
 
         df = pd.DataFrame(files)
         
@@ -256,6 +285,33 @@ class FileCatalog(object):
         
 
 class File(object):
+    """File finds and stores file metadata.
+
+    File is an object that finds and stores the metadata found during
+    the search operation. File is instantiated by FileCatalog during
+    its directory walk.
+
+    Args:
+        path (str): A path to the file. If the file does not exist,
+            an InputError is thrown.
+
+    Attributes:
+        path (str): A file path to the file in question.
+        name (str): The filename with extension.
+        extension (str): The file extension.
+        size (int): The file size in bytes.
+        hash_function (:hashlib:): The hashlib function used to compute 
+            the checksum.
+        buffer_size (int): The buffer size used when reading the file
+            during checksum computation.
+        duplicate (bool): Whether a file is a duplicate based on the 
+            checksum.
+        dir_link (str): An Excel function hyperlink to the directory.
+        link_dir (str): The directory that the link is saved in.
+        link (str): An Excel function hyperlink to the file link.
+
+    """
+
     def __init__(self, path):
 
         # Check path exists
