@@ -106,11 +106,44 @@ class FileCatalog(object):
                 file_obj.add_link(link_dir)
 
     def add_checksum(self):
-        pass
+
+        hash_function = self.catalog_properties.hash_function
+        buffer_size = self.catalog_properties.buffer_size
+
+        for file_obj in self._files:
+            file_obj.set_checksum(hash_function, buffer_size)
 
     def check_duplicates(self):
-        pass
-    
+        hash_map = {}
+
+        hash_function = self.catalog_properties.hash_function
+        buffer_size = self.catalog_properties.buffer_size
+
+        for file_obj in self._files:
+            chksum = file_obj.get_checksum(hash_function, buffer_size)
+
+            if chksum in hash_map:
+                file_obj.duplicate = True
+
+            else:
+                file_obj.duplicate = False
+                hash_map[chksum] = True
+                
+
+    def get_base_dir(self):
+        if self.catalog_properties.base_dir:
+            return self.catalog_properties.base_dir
+        else:
+            paths = [f.path for f in self._files]
+            return os.path.commonpath(paths)
+
+    def as_df(self):
+
+        base_dir = self.get_base_dir()
+
+        files = [f.as_dict(base_dir) for f in self._files]
+
+        return pd.DataFrame(files)
 
 class File(object):
     def __init__(self, path):
@@ -191,7 +224,7 @@ class File(object):
 
         return os.path.getsize(self.path)
 
-    def get_checksum(self, hash_function, buffer_size):
+    def set_checksum(self, hash_function, buffer_size):
 
         if any([hash_function is not self.hash_function,
                 not self.checksum]):
@@ -202,6 +235,10 @@ class File(object):
                                                       self.hash_function,
                                                       self.buffer_size)
 
+    def get_checksum(self, hash_function, buffer_size):
+
+        self.set_checksum(hash_function, buffer_size)
+        
         return self.checksum
 
     def add_link(self, link_dir):
