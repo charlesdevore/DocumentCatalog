@@ -30,6 +30,19 @@ class CatalogProperties(object):
         # subdirectories from.
         self.base_dir = os.getcwd()
 
+        # link is a flag to indicate whether symlinks should be added
+        # to the files.
+        self.link = False
+        
+        # link_dir is the location for links used in the Excel
+        # spreadsheet. These links are sym links that point to the
+        # exiting file location.
+        self.link_dir = os.path.join(os.getcwd(), '_Links')
+
+        # exclude_dirs is a list of relative directory names that
+        # should be excluded from each subdirectory.
+        self.exclude_dirs = ['_Links']
+        
         # Default parameters for the checksum calculation
         self.hash_function = hashlib.sha1()
         self.buffer_size = 65536
@@ -51,14 +64,10 @@ class FileCatalog(object):
         self._files = []
         self.load_files()
 
-
-
     def load_files(self):
 
-        file_objs_list = []
-        
-        self.load_existing_catalog(file_objs_list)
-        self.search_for_new_files(file_objs_list)
+        self.load_existing_catalog()
+        self.search_for_new_files()
 
         # Add computed properties to files
         self.add_links()
@@ -89,10 +98,12 @@ class FileCatalog(object):
 
     def add_links(self):
 
-        link_dir = self.catalog_properties.link_dir
+        if self.catalog_properties.link:
 
-        for file_obj in self._files:
-            file_obj.add_link(link_dir)
+            link_dir = self.catalog_properties.link_dir
+
+            for file_obj in self._files:
+                file_obj.add_link(link_dir)
 
     def add_checksum(self):
         pass
@@ -119,6 +130,8 @@ class File(object):
         self.hash_function = None
         self.buffer_size = None
         self.checksum = None
+        self.duplicate = False
+        self.dir_link = None
         self.link_dir = None
         self.link_path = None
         self.link = None
@@ -136,6 +149,36 @@ class File(object):
         else:
             return False
 
+    def as_dict(self, base_dir=None):
+
+        file_dict = {'File Path': self.path,
+                     'Filename': self.name,
+                     'File Size': self.size,
+                     'Readable Size': get_human_readable(self.size),
+                     'Checksum': self.checksum,
+                     'Duplicate': self.duplicate,
+                     'Directory': self.dir_link,
+                     'File Link': self.link}
+        
+        if base_dir:
+            sub_dirs = self.find_sub_dirs(base_dir)
+
+        else:
+            return file_dict
+
+        for ii, sd in enumerate(sub_dirs):
+            file_dict['Subdirectory {}'.format(ii)] = sd
+
+        return file_dict
+
+    def find_sub_dirs(self, base_dir):
+        """For a given base directory, find the relative path and return as
+        list of individual directories.
+        """        
+        rel_path = os.path.relpath(self.path, base_dir)
+
+        return os.path.normpath(rel_path).split(os.path.sep)
+        
     def find_file_name(self):
 
         return os.path.split(self.path)[1]
