@@ -5,26 +5,21 @@ import os
 import hashlib
 
 test_dir = os.path.join(os.getcwd(), 'test')
-                        
+CP = DC.CatalogProperties()
+CP.search_dirs = [test_dir]
 
 class TestDC(unittest.TestCase):
 
-    def test_find_files(self):
-        all_files =  DC.find_files(test_dir)
-        self.assertEqual(len(all_files), 9)
-        
-        some_files =  DC.find_files(test_dir, exclusion_dirs=['sub_dir'])
-        self.assertEqual(len(some_files), 6)
-
-        existing_files = [sf['File Path'] for sf in some_files]
-        diff_files = DC.find_files(test_dir, existing_files=existing_files)
-        self.assertEqual(len(diff_files), 3)
-
-
     def test_search_in_new_directory(self):
-        all_df = DC.search_in_new_directory(test_dir)
-        self.assertEqual(len(all_df), 9)
+        FC = DC.FileCatalog(CP)
+        self.assertEqual(len(FC), 9)
 
+    def test_exclude_directories(self):
+        CP2 = DC.CatalogProperties()
+        CP2.search_dirs = [test_dir]
+        CP2.exclude_dirs = ['sub_dir']
+        FC2 = DC.FileCatalog(CP2)
+        self.assertEqual(len(FC2), 6)
 
     def test_search_in_directory_with_existing_catalog(self):
         input_file = os.path.join(test_dir, 'some_files.xlsx')
@@ -34,8 +29,9 @@ class TestDC(unittest.TestCase):
 
 
     def test_duplicate_detection(self):
-        all_df = DC.search_in_new_directory(test_dir)
-        self.assertEqual(len(all_df.loc[all_df['Duplicate']==False]), 5)
+        FC = DC.FileCatalog(CP)
+        df = FC.as_df()
+        self.assertEqual(len(df.loc[df['Duplicate']==False]), 5)
 
 
     def test_checksum(self):
