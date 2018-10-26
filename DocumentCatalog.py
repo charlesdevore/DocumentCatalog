@@ -26,6 +26,14 @@ class CatalogProperties(object):
         # search_dir is the directory to search for new files in.
         self.search_dirs = [os.getcwd()]
 
+        # existing_catalog
+        self.existing_catalog = None
+
+        # output_file is the name of the output filename or path of
+        # the output Excel spreadsheet. The file extension must be
+        # xlsx. If output_file is None, then no output is generated.
+        self.output_file = None
+
         # base_dir is the base pivot directory to use for determining
         # subdirectories from.
         self.base_dir = os.getcwd()
@@ -52,7 +60,46 @@ class CatalogProperties(object):
             self.set_input_args(args)
 
     def set_input_args(self, args):
-        pass
+        
+        # Set directories to exclude
+        if args.exclude_directories:
+            self.exclude_dirs = args.exclude_directories
+
+        if args.search_dir:
+            self.search_dirs = [os.path.realpath(args.search_dir)]
+
+        if args.input_file:
+            if os.path.isfile(args.input_file):
+                self.existing_catalog = os.path.realpath(args.input_file)
+
+            else:
+                print('Error with input file.')
+                raise InputError
+            
+        if args.copy:
+            self.copy = args.copy
+            self.copy_dir = args.copy_dir
+            self.copy_key = args.copy_key
+
+        if args.create_links:
+            self.link = True
+            if args.link_dir:
+                self.link_dir = os.path.realpath(args.link_dir)
+            else:
+                self.link_dir = os.path.realpath(os.path.join(os.curdir, '_Links'))
+            
+        if args.create_OSX_links:
+            pass
+
+        if args.output:
+            file_out = args.output_file
+            if os.path.splitext(file_out)[1] == '.xlsx':
+                self.output_file = os.path.realpath(file_out)
+
+            else:
+                print('Error with output file, extension not .xlsx')
+                raise InputError
+
 
 
 class FileCatalog(object):
@@ -63,6 +110,10 @@ class FileCatalog(object):
 
         self._files = []
         self.load_files()
+        self.export()
+
+    def __len__(self):
+        return len(self._files)
 
     def load_files(self):
 
@@ -98,13 +149,36 @@ class FileCatalog(object):
 
     def add_links(self):
 
+    # # Check length of link_dir to ensure that links will be under
+    # # Excel limit of 256 characters. Assume max link value of 12.
+    # if len(link_dir) > (256-12):
+    #     print('The link directory is {} characters long and may result in hyperlinks not working. Please find a  new link directory with a shorter path.'.format(len(link_dir)))
+    #     user_continue = raw_input('Continue? [Y/n]')
+    #     if not (lower(user_continue) == 'y' or lower(user_continue) == None):
+    #         return files_df
         if self.catalog_properties.link:
 
             link_dir = self.catalog_properties.link_dir
 
+            if not os.path.isdir(link_dir):
+                os.mkdir(link_dir)
+
+            # Check length of link_dir to ensure that links will be under
+            # Excel limit of 256 characters. Assume max link value of 45.
+            if len(link_dir) > (256-45):
+                print("""The link directory is {} characters long and
+                may result in hyperlinks not working. Please find a
+                new link directory with a shorter
+                path.""".format(len(link_dir)))
+                user_continue = raw_input('Continue? [Y/n]')
+                if not (lower(user_continue) == 'y' or not user_continue):
+                    self.link = False
+                    return
+
             for file_obj in self._files:
                 file_obj.add_link(link_dir)
 
+                
     def add_checksum(self):
 
         hash_function = self.catalog_properties.hash_function
@@ -136,6 +210,11 @@ class FileCatalog(object):
         else:
             paths = [f.path for f in self._files]
             return os.path.commonpath(paths)
+
+    def export(self):
+        if self.catalog_properties.output_file:
+            df = self.as_df()
+            df.to_excel(self.catalog_properties.output_file)
 
     def as_df(self):
 
@@ -197,7 +276,6 @@ class File(object):
         self.duplicate = False
         self.dir_link = None
         self.link_dir = None
-        self.link_path = None
         self.link = None
 
     def __str__(self):
@@ -283,8 +361,13 @@ class File(object):
 
             os.link(long_name, self.link_path())
 
-            self.link = '=hyperlink("{}","File")'.format(self.link_path)
+            self.link = '=hyperlink("{}","File")'.format(self.link_path())
 
+            self.dir_link = '=hyperlink("{}","Link")'.format(self.directory_path())
+
+    def directory_path(self):
+        return os.path.split(self.path)[0]
+            
     def link_path(self):
         return os.path.join(self.link_dir, self.link_name)
 
@@ -293,42 +376,7 @@ class File(object):
         h.update(self.path.encode())
         return h.hexdigest()
 
-def search_in_new_directory(search_dir, exclusion_dirs=['_Links'],
-                            verbose_flag=False, check_existing_file_paths=True):
 
-    # Search in a new directory
-    files_list = find_files(search_dir, exclusion_dirs=exclusion_dirs,
-                            verbose_flag=verbose_flag,
-                            check_existing_file_paths=check_existing_file_paths)
-    files_list, max_depth = subdirectory(files_list, search_dir)
-    files_list = find_duplicates(files_list)
-    files_df = file_catalog(files_list, max_depth)
-
-    return files_df
-    
-
-def search_in_directory_with_existing_catalog(search_dir, input_file,
-                                              exclusion_dirs=['_Links'], verbose_flag=False,
-                                              check_existing_file_paths=True):
-
-    # Search in directory with an existing catalog
-    existing_df = load_existing(input_file)
-    existing_cols = list(existing_df)
-    existing_list = [row['File Path']
-                     for ii, row in existing_df.iterrows()]
-    files_list = find_files(search_dir, exclusion_dirs=exclusion_dirs,
-                            existing_files=existing_list,
-                            verbose_flag=verbose_flag,
-                            check_existing_file_paths=check_existing_file_paths)
-    files_list, max_depth = subdirectory(files_list, search_dir)
-    files_list = find_duplicates(files_list)
-    new_df = file_catalog(files_list, max_depth)
-    files_df = existing_df.append(new_df, ignore_index=True)
-    ordered_cols = existing_cols + list(set(list(files_df)) - set(existing_cols))
-    files_df = files_df[ordered_cols]
-    
-    return files_df
-    
     
 def copy_files(source_dir, dest_dir, batch_file = 'run_DC_copy.bat', allow_dest_exist=False):
 
@@ -581,8 +629,7 @@ def OSX_links(files):
 
     return out_files
 
-    
-if __name__ == '__main__':
+def parse_arugments():
 
     parser = argparse.ArgumentParser(description='Process arguments for DocumentCatalog')
     parser.add_argument('-s', '--search-dir', type=str)
@@ -601,81 +648,19 @@ if __name__ == '__main__':
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
     parser.add_argument('--do-not-check-existing-file-paths', action='store_true', default=False)
 
-    args = parser.parse_args()
-
-    # Set directories to exclude
-    if args.exclude_directories is None:
-        exclusion_dirs = ['_Links']
-    else:
-        exclusion_dirs = args.exclude_directories
+    return parser.parse_args()
 
 
-    if args.copy:
+def main(args=None):
 
-        if args.copy_dir is not None and args.search_dir is not None:
+    CP = CatalogProperties(args)
+    FC = FileCatalog(CP)
 
-            # Copy files from search directory to copy directory
-            copy_files(args.search_dir,
-                       args.copy_dir,
-                       allow_dest_exist=args.allow_overwrite)
+    
+if __name__ == '__main__':
 
-
-        elif args.copy_key is not None and args.output_copy_dir is not None:
-
-            # Copy specific files to output copy directory
-            pass
-
-
-        else:
-
-            print("""Error: Copy requested but cannot complete
-            due to improper specifications.""")
-        
-
-    else:
-
-        if args.search_dir is not None:
-
-            if args.input_file is None:
-
-                files_df = search_in_new_directory(args.search_dir,
-                                                   exclusion_dirs=exclusion_dirs,
-                                                   verbose_flag=args.verbose,
-                                                   check_existing_file_paths=not args.do_not_check_existing_file_paths)
-            else:
-
-                files_df = search_in_directory_with_existing_catalog(args.search_dir,
-                                                                     args.input_file,
-                                                                     exclusion_dirs=exclusion_dirs,
-                                                                     verbose_flag=args.verbose,
-                                                                     check_existing_file_paths=not args.do_not_check_existing_file_paths)
-
-        if args.create_links:
-
-            if args.link_dir is None:
-                if args.search_dir is not None:
-                    link_dir = os.path.join(args.search_dir, '_Links')
-                    files_df = link(files_df, link_dir, verbose_flag=args.verbose)
-
-                else:
-                    print('Error: Link directory and search directory not specified.')
-
-            else:
-                link_dir = args.link_dir
-                files_df = link(files_df, link_dir, verbose_flag=args.verbose)
-
-
-            if args.create_OSX_links:
-
-                # Add OSX links
-                pass
-
-
-        if args.output:
-
-            fname = args.output_file
-            export(files_df, fname, sheet_name='Files', allow_overwrite=args.allow_overwrite)
-
+    args = parse_arugments()
+    main(args)
             
     # print(files_df)
 
