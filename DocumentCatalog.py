@@ -143,7 +143,38 @@ class FileCatalog(object):
 
         files = [f.as_dict(base_dir) for f in self._files]
 
-        return pd.DataFrame(files)
+        df = pd.DataFrame(files)
+        
+        ordered_cols = self.ordered_columns(df.columns)
+        
+        return df[ordered_cols]
+
+    def ordered_columns(self, columns):
+
+        ordered_cols = []
+
+        if 'File Path' in columns:
+            ordered_cols.append('File Path')
+        else:
+            raise InputError
+
+        sub_dir_cols = [c for c in columns if 'Subdirectory' in c]
+        sub_dir_cols.sort()
+        ordered_cols += sub_dir_cols
+
+        goal_cols = ['Filename', 'File Size', 'Readable Size',
+                     'Checksum', 'Duplicate', 'File Link', 'Directory']
+
+        for gc in goal_cols:
+            if gc in columns:
+                ordered_cols.append(gc)
+
+        remaining_cols = [c for c in columns if c not in ordered_cols]
+
+        ordered_cols += remaining_cols
+
+        return ordered_cols
+        
 
 class File(object):
     def __init__(self, path):
@@ -200,7 +231,7 @@ class File(object):
             return file_dict
 
         for ii, sd in enumerate(sub_dirs):
-            file_dict['Subdirectory {}'.format(ii)] = sd
+            file_dict['Subdirectory {}'.format(ii+1)] = sd
 
         return file_dict
 
@@ -210,7 +241,7 @@ class File(object):
         """        
         rel_path = os.path.relpath(self.path, base_dir)
 
-        return os.path.normpath(rel_path).split(os.path.sep)
+        return os.path.normpath(rel_path).split(os.path.sep)[:-1]
         
     def find_file_name(self):
 
@@ -554,15 +585,21 @@ def find_duplicates(files_list, hash_function=hashlib.sha1(), buffer_size=65536)
 def compute_checksum_for_file(file_path, hash_function, buffer_size):
 
     h = hashlib.new(hash_function.name)
-    
-    with open(file_path, 'rb') as f:
-        data = f.read(buffer_size)
-        while data:
-            h.update(data)
+
+    try:
+        with open(file_path, 'rb') as f:
             data = f.read(buffer_size)
+            while data:
+                h.update(data)
+                data = f.read(buffer_size)
 
-    return h.hexdigest()
+        return h.hexdigest()
 
+    except PermissionError:
+        return None
+
+    return None
+    
 def subdirectory(files_list, root_dir):
 
     # Compute the individual sub-directories based on the root
