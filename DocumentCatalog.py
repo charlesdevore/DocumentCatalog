@@ -119,18 +119,18 @@ Attributes:
 class FileCatalog(object):
     """FileCatalog organizes File objects.
 
-FileCatalog provides a collection of File objects corresponding to a
-particular search operation. The parameters of the search are
-specified by the CatalogProperties object that is taken as input.
+    FileCatalog provides a collection of File objects corresponding to a
+    particular search operation. The parameters of the search are
+    specified by the CatalogProperties object that is taken as input.
 
-Args:
-    catalog_properties (:CatalogProperties:): Parameters for 
-        constructing FileCatalog.
+    Args:
+        catalog_properties (:CatalogProperties:): Parameters for 
+            constructing FileCatalog.
 
-Attributes:
-    catalog_properties (:CatalogProperties:): Same as input.
-    files (list[:File:]): A list of file objects corresponding
-        to each file contained within the catalog. 
+    Attributes:
+        catalog_properties (:CatalogProperties:): Same as input.
+        files (list[:File:]): A list of file objects corresponding
+            to each file contained within the catalog. 
 
     """
     def __init__(self, catalog_properties):
@@ -178,13 +178,6 @@ Attributes:
 
     def add_links(self):
 
-    # # Check length of link_dir to ensure that links will be under
-    # # Excel limit of 256 characters. Assume max link value of 12.
-    # if len(link_dir) > (256-12):
-    #     print('The link directory is {} characters long and may result in hyperlinks not working. Please find a  new link directory with a shorter path.'.format(len(link_dir)))
-    #     user_continue = raw_input('Continue? [Y/n]')
-    #     if not (lower(user_continue) == 'y' or lower(user_continue) == None):
-    #         return files_df
         if self.catalog_properties.link:
 
             link_dir = self.catalog_properties.link_dir
