@@ -16,6 +16,7 @@ import pandas as pd
 import platform
 import hashlib
 import datetime
+import xlsxwriter
 import win32com.client
 
 class CatalogProperties(object):
@@ -115,6 +116,13 @@ Attributes:
                 raise InputError
 
 
+    def as_dict(self):
+
+        return {'Search Directories': self.search_dirs,
+                'Base Directory': self.base_dir,
+                'Link Directory': self.link_dir}
+    
+
 
 class FileCatalog(object):
     """FileCatalog organizes File objects.
@@ -192,7 +200,7 @@ class FileCatalog(object):
                 may result in hyperlinks not working. Please find a
                 new link directory with a shorter
                 path.""".format(len(link_dir)))
-                user_continue = raw_input('Continue? [Y/n]')
+                user_continue = input('Continue? [Y/n]')
                 if not (lower(user_continue) == 'y' or not user_continue):
                     self.link = False
                     return
@@ -235,8 +243,49 @@ class FileCatalog(object):
 
     def export(self):
         if self.catalog_properties.output_file:
-            df = self.as_df()
-            df.to_excel(self.catalog_properties.output_file)
+
+            if os.path.isfile(self.catalog_properties.output_file):
+                allow_overwrite = input('Output file exists. Allow overwrite? [Y/n]\n')
+
+                if allow_overwrite.lower() is 'y' or not allow_overwrite:
+                    self.to_excel()
+
+                else:
+                    output_file = input('Please enter the output filename.\n')
+                    self.catalog_properties.output_file = output_file
+                    self.export()
+
+            else:
+                self.to_excel()
+                
+
+    def to_excel(self):
+
+            # Export files information to Worksheet named "Catalog"
+            df = self.as_df()        
+            df.to_excel(self.catalog_properties.output_file,
+                        sheet_name='Catalog')
+
+            # Export catalog_properties to Worksheet named "Properties"
+            # self.properties_to_excel()
+
+
+    def properties_to_excel(self):
+        
+        with xlsxwriter.Workbook() as workbook:
+            worksheet = workbook.add_worksheet('Properties')
+        
+            d = self.catalog_properties.as_dict()
+
+            row, col = 0,0
+        
+            for row, key in enumerate(d.keys()):
+                # print(row, key, d[key])
+                worksheet.write(row, col, key)
+                for col, item in enumerate(d[key]):
+                    if item:
+                        worksheet.write(row, col + 1, item)
+                        
 
     def as_df(self):
 
@@ -326,6 +375,7 @@ class File(object):
         self.dir_link = None
         self.link_dir = None
         self.link = None
+        self.link_name = None
 
     def __str__(self):
         
@@ -349,7 +399,9 @@ class File(object):
                      'Checksum': self.checksum,
                      'Duplicate': self.duplicate,
                      'Directory': self.dir_link,
-                     'File Link': self.link}
+                     'File Link': self.link,
+                     'Link Directory': self.link_dir,
+                     'Link Name': self.link_name}
         
         if base_dir:
             sub_dirs = self.find_sub_dirs(base_dir)
