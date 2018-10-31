@@ -61,7 +61,7 @@ Attributes:
         # xlsx. If output_file is None, then no output is generated.
         self.output_file = None
 
-        self.base_dir = os.getcwd()
+        self.base_dir = None
 
         self.link = False
         self.link_dir = os.path.join(os.getcwd(), '_Links')
@@ -235,11 +235,12 @@ class FileCatalog(object):
                 
 
     def get_base_dir(self):
-        if self.catalog_properties.base_dir:
-            return self.catalog_properties.base_dir
-        else:
+
+        if not self.catalog_properties.base_dir:
             paths = [f.path for f in self.files]
-            return os.path.commonpath(paths)
+            self.catalog_properties.base_dir = os.path.commonpath(paths)
+
+        return self.catalog_properties.base_dir
 
     def export(self):
         if self.catalog_properties.output_file:
@@ -307,6 +308,9 @@ class FileCatalog(object):
             ordered_cols.append('File Path')
         else:
             raise InputError
+
+        if 'Base Directory' in columns:
+            ordered_cols.append('Base Directory')
 
         sub_dir_cols = [c for c in columns if 'Subdirectory' in c]
         sub_dir_cols.sort()
@@ -409,6 +413,7 @@ class File(object):
         else:
             return file_dict
 
+        file_dict['Base Directory'] = base_dir
         for ii, sd in enumerate(sub_dirs):
             file_dict['Subdirectory {}'.format(ii+1)] = sd
 
