@@ -159,18 +159,44 @@ class FileCatalog(object):
 
         # Add computed properties to files
         self.add_links()
-        self.add_checksum()
+        # self.add_checksum()
         self.check_duplicates()
 
-    def add_file(self, file_path):
+    def add_file(self, file_obj):
         
-        file_obj = File(file_path)
-
         if file_obj not in self.files:
             self.files.append(file_obj)
             
     def load_existing_catalog(self):
-        pass
+
+        df = self.import_existing_catalog()
+        if df.empty:
+            return
+        
+        CP = self.import_existing_properties()
+
+        for index,row in df.iterrows():
+            info = dict(row)
+            path = row['File Path']
+            file_obj = ExistingFile(path, info=info, CP=CP)
+            self.add_file(file_obj)
+
+
+    def import_existing_catalog(self):
+
+        existing_filename = self.catalog_properties.existing_catalog
+
+        if existing_filename:
+            df = pd.read_excel(existing_filename, sheet_name='Catalog')
+
+        else:
+            df = pd.DataFrame()
+
+        return df
+
+    def import_existing_properties(self):
+
+        return CatalogProperties()
 
     def search_for_new_files(self):
 
@@ -178,7 +204,8 @@ class FileCatalog(object):
             for root, dirs, files in os.walk(search_dir):
                 for f in files:
                     file_path = os.path.join(root, f)
-                    self.add_file(file_path)
+                    file_obj = File(file_path)
+                    self.add_file(file_obj)
 
                 for exclude_dir in self.catalog_properties.exclude_dirs:
                     if exclude_dir in dirs:
@@ -248,7 +275,7 @@ class FileCatalog(object):
             if os.path.isfile(self.catalog_properties.output_file):
                 allow_overwrite = input('Output file exists. Allow overwrite? [Y/n]\n')
 
-                if allow_overwrite.lower() is 'y' or not allow_overwrite:
+                if allow_overwrite.lower() == 'y' or not allow_overwrite:
                     self.to_excel()
 
                 else:
@@ -370,6 +397,9 @@ class File(object):
         # Set basic properties
         self.name = self.find_file_name()
         self.extension = self.find_extension()
+
+        # TODO: Refactor size to be a computed property that can be
+        # set in ExistingFile to improve file access efficiency
         self.size = self.find_file_size()
 
         self.hash_function = None
@@ -389,7 +419,7 @@ class File(object):
         # Test to see if the two paths the same. First check using the
         # faster string comparison of the lower case path and if true
         # then check using the slower os based method.
-        if self.path.lower() is other.path.lower():
+        if self.path.lower() == other.path.lower():
             return os.path.samefile(self.path, other.path)
         else:
             return False
@@ -442,20 +472,22 @@ class File(object):
 
     def set_checksum(self, hash_function, buffer_size):
 
-        if any([hash_function is not self.hash_function,
-                not self.checksum]):
-
-            self.hash_function = hash_function
-            self.buffer_size = buffer_size
-            self.checksum = compute_checksum_for_file(self.path,
-                                                      self.hash_function,
-                                                      self.buffer_size)
+        self.hash_function = hash_function
+        self.buffer_size = buffer_size
+        self.checksum = compute_checksum_for_file(self.path,
+                                                  self.hash_function,
+                                                  self.buffer_size)
 
     def get_checksum(self, hash_function, buffer_size):
 
-        self.set_checksum(hash_function, buffer_size)
+        if self.checksum and all([self.hash_function.name == hash_function.name,
+                                  self.buffer_size == buffer_size]):
+            return self.checksum
+
+        else:
+            self.set_checksum(hash_function, buffer_size)
+            return self.checksum
         
-        return self.checksum
 
     def add_link(self, link_dir):
 
@@ -483,6 +515,56 @@ class File(object):
         h.update(self.path.encode())
         return h.hexdigest()
 
+class ExistingFile(File):
+
+    def __init__(self, path, info=None, CP=None):
+
+        super().__init__(path)
+
+        self.input_info = info
+        self.input_CP = CP
+
+        self.process_input()
+
+    def __eq__(self, other):
+        
+        return super().__eq__(other)
+
+    def __str__(self):
+
+        return super().__str__()
+
+    def process_input(self):
+        if self.input_info:
+            self.process_input_info()
+
+        if self.input_CP:
+            self.process_input_CP()
+
+    def process_input_info(self):
+
+        key_attr = {'File Size': 'size',
+                    'Checksum':  'checksum',
+                    'Duplicate': 'duplicate'}
+
+        for key in self.input_info:
+            value = self.input_info[key]
+            if key in key_attr:
+                attr  = key_attr[key]
+                setattr(self, attr, value)
+                # print(key, value, getattr(self, attr))
+
+    def process_input_CP(self):
+
+        key_attr = {'hash_function': 'hash_function',
+                    'buffer_size':   'buffer_size'}                    
+                
+        for key in self.input_CP.__dict__:
+            value = getattr(self.input_CP, key)
+            if key in key_attr:
+                attr = key_attr[key]
+                setattr(self, attr, value)
+                # print(key, value, getattr(self, attr))
 
     
 def copy_files(source_dir, dest_dir, batch_file = 'run_DC_copy.bat', allow_dest_exist=False):
