@@ -316,7 +316,7 @@ class FileCatalog(object):
         sub_dir_cols.sort()
         ordered_cols += sub_dir_cols
 
-        goal_cols = ['Filename', 'File Size', 'Readable Size',
+        goal_cols = ['Filename', 'Extension', 'File Size', 'Readable Size',
                      'Checksum', 'Duplicate', 'File Link', 'Directory']
 
         for gc in goal_cols:
@@ -398,6 +398,7 @@ class File(object):
 
         file_dict = {'File Path': self.path,
                      'Filename': self.name,
+                     'Extension': self.extension,
                      'File Size': self.size,
                      'Readable Size': get_human_readable(self.size),
                      'Checksum': self.checksum,
