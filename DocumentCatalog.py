@@ -339,6 +339,9 @@ class FileCatalog(object):
         if 'Base Directory' in columns:
             ordered_cols.append('Base Directory')
 
+        if 'Relative Path' in columns:
+            ordered_cols.append('Relative Path')
+
         sub_dir_cols = [c for c in columns if 'Subdirectory' in c]
         sub_dir_cols.sort()
         ordered_cols += sub_dir_cols
@@ -445,6 +448,7 @@ class File(object):
             return file_dict
 
         file_dict['Base Directory'] = base_dir
+        file_dict['Relative Path'] = os.path.relpath(self.path, base_dir)
         for ii, sd in enumerate(sub_dirs):
             file_dict['Subdirectory {}'.format(ii+1)] = sd
 
