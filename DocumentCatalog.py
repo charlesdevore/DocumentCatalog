@@ -81,7 +81,7 @@ Attributes:
             self.exclude_dirs = args.exclude_directories
 
         if args.search_dir:
-            self.search_dirs = [os.path.realpath(args.search_dir)]
+            self.search_dirs = [args.search_dir]
 
         if args.input_file:
             if os.path.isfile(args.input_file):
@@ -289,30 +289,59 @@ class FileCatalog(object):
 
     def to_excel(self):
 
-            # Export files information to Worksheet named "Catalog"
-            df = self.as_df()        
-            df.to_excel(self.catalog_properties.output_file,
-                        sheet_name='Catalog')
-
-            # Export catalog_properties to Worksheet named "Properties"
-            # self.properties_to_excel()
-
-
-    def properties_to_excel(self):
+        writer = pd.ExcelWriter(self.catalog_properties.output_file,
+                                engine='xlsxwriter')
         
-        with xlsxwriter.Workbook() as workbook:
-            worksheet = workbook.add_worksheet('Properties')
-        
-            d = self.catalog_properties.as_dict()
+        # Export files information to Worksheet named "Catalog"
+        df = self.as_df()        
+        df.to_excel(writer, sheet_name='Catalog')
 
-            row, col = 0,0
+        # Export catalog_properties to Worksheet named "Properties" by
+        # using the xlsxwriter workbook object
+        workbook = writer.book
+        self.properties_to_excel(workbook)
+
+        writer.save()
+
+
+    def properties_to_excel(self, workbook):
         
-            for row, key in enumerate(d.keys()):
-                # print(row, key, d[key])
-                worksheet.write(row, col, key)
-                for col, item in enumerate(d[key]):
-                    if item:
-                        worksheet.write(row, col + 1, item)
+        worksheet = workbook.add_worksheet('Properties')
+
+        row, col = 0,0
+
+        # Header
+        header_str = 'Document Catalog Properties'
+        worksheet.write(row, col, header_str)
+        row += 2
+
+        # Search Directories
+        worksheet.write(row, col, 'Search Directories:')
+        for sd in self.catalog_properties.search_dirs:
+            worksheet.write(row, col+1, sd)
+            row += 1
+
+        # Exclude Directories
+        worksheet.write(row, col, 'Exclude Directories:')
+        for ed in self.catalog_properties.exclude_dirs:
+            worksheet.write(row, col+1, ed)
+            row += 1
+
+        # Existing Catalog
+        if self.catalog_properties.existing_catalog:
+            worksheet.write(row, col, 'Existing Catalog:')
+            worksheet.write(row, col+1, self.catalog_properties.existing_catalog)
+            row += 1
+
+        # Buffer Size
+        worksheet.write(row, col, 'Buffer Size:')
+        worksheet.write(row, col+1, self.catalog_properties.buffer_size)
+        row +=1
+
+        # Hash Function
+        worksheet.write(row, col, 'Hash Function:')
+        worksheet.write(row, col+1, self.catalog_properties.hash_function.name)
+            
                         
 
     def as_df(self):
