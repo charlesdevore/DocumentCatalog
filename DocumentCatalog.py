@@ -49,6 +49,7 @@ Attributes:
         to compute the checksum to differentiate unique files.
     buffer_size (int): The number of bytes to use as a buffer when
         reading the file for computation of the checksum.
+    verbose (bool): Flag for verbose output.
     """
 
     def __init__(self, args=None):
@@ -69,6 +70,8 @@ Attributes:
 
         self.hash_function = hashlib.sha1()
         self.buffer_size = 65536
+
+        self.verbose = False
 
         # Use input args to set Catalog parameters
         if args:
@@ -115,6 +118,9 @@ Attributes:
                 print('Error with output file, extension not .xlsx')
                 raise InputError
 
+        if args.verbose:
+            self.verbose = True
+            
 
     def as_dict(self):
 
@@ -155,7 +161,14 @@ class FileCatalog(object):
     def load_files(self):
 
         self.load_existing_catalog()
+        N_existing_files = len(self.files)
+        if self.catalog_properties.verbose:
+            print('Existing Files Loaded: {}'.format(N_existing_files))
+            
         self.search_for_new_files()
+        N_new_files = len(self.files) - N_existing_files
+        if self.catalog_properties.verbose:
+            print('New Files Loaded: {}'.format(N_new_files))
 
         # Add computed properties to files
         self.add_links()
@@ -200,6 +213,8 @@ class FileCatalog(object):
 
     def search_for_new_files(self):
 
+        if self.catalog_properties.verbose:
+            print('Searching...')
         for search_dir in self.catalog_properties.search_dirs:
             for root, dirs, files in os.walk(search_dir):
                 for f in files:
@@ -210,6 +225,10 @@ class FileCatalog(object):
                 for exclude_dir in self.catalog_properties.exclude_dirs:
                     if exclude_dir in dirs:
                         dirs.remove(exclude_dir)
+
+                if self.catalog_properties.verbose:
+                    print(root)
+
 
     def add_links(self):
 
