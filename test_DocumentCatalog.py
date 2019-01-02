@@ -23,9 +23,11 @@ class TestDC(unittest.TestCase):
 
     def test_search_in_directory_with_existing_catalog(self):
         input_file = os.path.join(test_dir, 'some_files.xlsx')
-        some_df = DC.search_in_directory_with_existing_catalog(test_dir,
-                                                               input_file)
-        self.assertEqual(len(some_df), 9)
+        CP3 = DC.CatalogProperties()
+        CP3.search_dirs = [test_dir]
+        CP3.existing_catalog = input_file
+        FC3 = DC.FileCatalog(CP3)
+        self.assertEqual(len(FC3), 9)
 
 
     def test_duplicate_detection(self):
