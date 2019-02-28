@@ -18,6 +18,7 @@ import hashlib
 import datetime
 import xlsxwriter
 import win32com.client
+import sqlite3
 
 class CatalogProperties(object):
     """CatalogProperties provides an interface for FileCatalog.
@@ -36,6 +37,8 @@ Attributes:
         paths of where to search for files.  
     existing_catalog (str): Filename or path to filename containing a
         spreadsheet with an existing document catalog.
+    database (str): Filename of the SQLite3 database to store
+        intermediate results.
     output_file (str): Filename or path where the output spreadsheet
         should be saved.
     base_dir (str): The base directory that should be used as the 
@@ -56,6 +59,11 @@ Attributes:
 
         self.search_dirs = [os.getcwd()]
         self.existing_catalog = None
+
+        self.database = 'document_catalog.db'
+
+        # The number of rows to buffer before inserting into the database
+        self.database_row_buffer = 100
 
         # output_file is the name of the output filename or path of
         # the output Excel spreadsheet. The file extension must be
@@ -109,6 +117,9 @@ Attributes:
         if args.create_OSX_links:
             pass
 
+        if args.database:
+            self.database = args.database
+
         if args.output:
             file_out = args.output_file
             if os.path.splitext(file_out)[1] == '.xlsx':
@@ -126,7 +137,8 @@ Attributes:
 
         return {'Search Directories': self.search_dirs,
                 'Base Directory': self.base_dir,
-                'Link Directory': self.link_dir}
+                'Link Directory': self.link_dir,
+                'Database': self.database}
     
 
 
@@ -160,6 +172,8 @@ class FileCatalog(object):
 
     def load_files(self):
 
+        self.create_database()
+
         self.load_existing_catalog()
         N_existing_files = len(self.files)
         if self.catalog_properties.verbose:
@@ -170,6 +184,8 @@ class FileCatalog(object):
         if self.catalog_properties.verbose:
             print('New Files Loaded: {}'.format(N_new_files))
 
+        self.insert_to_database()
+        
         # Add computed properties to files
         self.add_links()
         # self.add_checksum()
@@ -179,6 +195,18 @@ class FileCatalog(object):
         
         if file_obj not in self.files:
             self.files.append(file_obj)
+
+        if len(self.files) % self.catalog_properties.database_row_buffer == 0:
+            self.insert_to_database(row_buffer = self.catalog_properties.database_row_buffer)
+
+    def insert_to_database(self, row_buffer=None):
+
+        if not row_buffer:
+            row_buffer = len(self.files) % self.catalog_properties.database_row_buffer
+
+        self.cursor.executemany('INSERT INTO files VALUES (?,?,?,?,?,?,?,?,?,?,?)', [f.as_tuple() for f in self.files[-row_buffer:]])
+
+        self.connection.commit()
             
     def load_existing_catalog(self):
 
@@ -228,6 +256,34 @@ class FileCatalog(object):
 
                 if self.catalog_properties.verbose:
                     print(root)
+
+    def create_database(self):
+
+        if os.path.isfile(self.catalog_properties.database):
+            usr_response = input('Warning: {} already exists, continue writing to database? [y/N]'.format(self.catalog_properties.database))
+            if not usr_response.lower() == 'y':
+                self.catalog_properties.database = input('Please enter new database name: ')
+                self.create_database()
+
+            self.connection = sqlite3.connect(self.catalog_properties.database)
+            self.cursor = self.connection.cursor()
+
+        else:
+            self.connection = sqlite3.connect(self.catalog_properties.database)
+            self.cursor = self.connection.cursor()
+            self.cursor.execute('''CREATE TABLE files
+            (path text,
+            filename text,
+            extension text,
+            size integer,
+            human_readable text,
+            checksum text,
+            duplicate bool,
+            directory text,
+            file_link text,
+            dir_link text,
+            link_name text)''')
+            self.connection.commit()
 
 
     def add_links(self):
@@ -502,6 +558,10 @@ class File(object):
 
         return file_dict
 
+    def as_tuple(self):
+
+        return (self.path, self.name, self.extension, self.size, self.human_readable, self.checksum, self.duplicate, self.dir_link, self.link, self.link_dir, self.link_name)
+
     def find_sub_dirs(self, base_dir):
         """For a given base directory, find the relative path and return as
         list of individual directories.
@@ -509,7 +569,11 @@ class File(object):
         rel_path = os.path.relpath(self.path, base_dir)
 
         return os.path.normpath(rel_path).split(os.path.sep)[:-1]
-        
+
+    @property
+    def human_readable(self):
+        return get_human_readable(self.size)
+    
     def find_file_name(self):
 
         return os.path.split(self.path)[1]
@@ -874,6 +938,7 @@ def parse_arugments():
 
     parser = argparse.ArgumentParser(description='Process arguments for DocumentCatalog')
     parser.add_argument('-s', '--search-dir', type=str)
+    parser.add_argument('-d', '--database', type=str)
     parser.add_argument('-o', '--output', action='store_true', default=False)
     parser.add_argument('--output-file', type=str, default='Document Catalog.xlsx')
     parser.add_argument('-i', '--input-file', type=str)
