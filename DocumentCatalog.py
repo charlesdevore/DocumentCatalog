@@ -19,6 +19,8 @@ import datetime
 import xlsxwriter
 import win32com.client
 import sqlite3
+import random
+import string
 
 class CatalogProperties(object):
     """CatalogProperties provides an interface for FileCatalog.
@@ -57,8 +59,12 @@ Attributes:
 
     def __init__(self, args=None):
 
-        self.search_dirs = [os.getcwd()]
+        self.search_dir = os.getcwd()
         self.existing_catalog = None
+
+        # Session ID is the primary key for the search session that is
+        # saved in the database
+        self.session_id = None
 
         self.database = 'document_catalog.db'
 
@@ -92,7 +98,17 @@ Attributes:
             self.exclude_dirs = args.exclude_directories
 
         if args.search_dir:
-            self.search_dirs = [args.search_dir]
+            self.search_dir = args.search_dir
+
+        if args.base_dir:
+            self.base_dir = args.base_dir
+        else:
+            self.base_dir = self.search_dir
+
+        if args.session_id:
+            self.session_id = args.session_id
+        else:
+            self.session_id = ''.join([random.choice(string.ascii_lowercase) for ii in range(4)])
 
         if args.input_file:
             if os.path.isfile(args.input_file):
@@ -139,7 +155,17 @@ Attributes:
                 'Base Directory': self.base_dir,
                 'Link Directory': self.link_dir,
                 'Database': self.database}
-    
+
+    def insert_to_database(self, cursor):
+
+        cursor.execute('INSERT INTO catalog_properties VALUES (?,?,?,?,?,?,?)', self.as_tuple())
+
+    def as_tuple(self):
+
+        return (self.session_id, self.search_dir, self.base_dir,
+                self.link_dir, self.hash_function.name,
+                self.buffer_size,
+                datetime.datetime.isoformat(datetime.datetime.utcnow()))
 
 
 class FileCatalog(object):
@@ -173,6 +199,7 @@ class FileCatalog(object):
     def load_files(self):
 
         self.create_database()
+        self.catalog_properties.insert_to_database(self.cursor)
 
         self.load_existing_catalog()
         N_existing_files = len(self.files)
@@ -204,7 +231,7 @@ class FileCatalog(object):
         if not row_buffer:
             row_buffer = len(self.files) % self.catalog_properties.database_row_buffer
 
-        self.cursor.executemany('INSERT INTO files VALUES (?,?,?,?,?,?)', [f.as_tuple() for f in self.files[-row_buffer:]])
+        self.cursor.executemany('INSERT INTO files VALUES (?,?,?,?,?,?,?)', [f.as_tuple() for f in self.files[-row_buffer:]])
 
         self.connection.commit()
             
@@ -243,19 +270,19 @@ class FileCatalog(object):
 
         if self.catalog_properties.verbose:
             print('Searching...')
-        for search_dir in self.catalog_properties.search_dirs:
-            for root, dirs, files in os.walk(search_dir):
-                for f in files:
-                    file_path = os.path.join(root, f)
-                    file_obj = File(file_path, search_dir, self.catalog_properties)
-                    self.add_file(file_obj)
 
-                for exclude_dir in self.catalog_properties.exclude_dirs:
-                    if exclude_dir in dirs:
-                        dirs.remove(exclude_dir)
+        for root, dirs, files in os.walk(self.catalog_properties.search_dir):
+            for f in files:
+                file_path = os.path.join(root, f)
+                file_obj = File(file_path, self.catalog_properties)
+                self.add_file(file_obj)
 
-                if self.catalog_properties.verbose:
-                    print(root)
+            for exclude_dir in self.catalog_properties.exclude_dirs:
+                if exclude_dir in dirs:
+                    dirs.remove(exclude_dir)
+
+            if self.catalog_properties.verbose:
+                print(root)
 
     def create_database(self):
 
@@ -271,13 +298,28 @@ class FileCatalog(object):
         else:
             self.connection = sqlite3.connect(self.catalog_properties.database)
             self.cursor = self.connection.cursor()
-            self.cursor.execute('''CREATE TABLE files
+            self.cursor.execute('''
+            CREATE TABLE files
             (rel_path text,
             filename text,
             extension text,
             size integer,
             human_readable text,
-            checksum text)''')
+            checksum text,
+            session_id text);
+            ''')
+            self.cursor.execute('''
+            CREATE TABLE catalog_properties
+            (session_id text,
+            search_dir text,
+            base_dir text,
+            link_dir text,
+            hash_function text,
+            hash_buffer_size integer,
+            date text,
+            PRIMARY KEY(session_id ASC));
+            ''')
+            
             self.connection.commit()
 
 
@@ -325,14 +367,6 @@ class FileCatalog(object):
                 file_obj.duplicate = False
                 hash_map[file_obj.checksum] = True
                 
-
-    def get_base_dir(self):
-
-        if not self.catalog_properties.base_dir:
-            paths = [f.path for f in self.files]
-            self.catalog_properties.base_dir = os.path.commonpath(paths)
-
-        return self.catalog_properties.base_dir
 
     def export(self):
         if self.catalog_properties.output_file:
@@ -411,9 +445,7 @@ class FileCatalog(object):
 
     def as_df(self):
 
-        base_dir = self.get_base_dir()
-
-        files = [f.as_dict(base_dir) for f in self.files]
+        files = [f.as_dict() for f in self.files]
 
         df = pd.DataFrame(files)
         
@@ -482,7 +514,7 @@ class File(object):
 
     """
 
-    def __init__(self, path, base_dir, catalog_properties):
+    def __init__(self, path, catalog_properties):
 
         # Check path exists
         if not os.path.isfile(path):
@@ -490,7 +522,6 @@ class File(object):
 
         # Assign constructor input parameters
         self.path = path
-        self.base_dir = base_dir
         self.catalog_properties = catalog_properties
 
         # Set basic properties
@@ -513,7 +544,9 @@ class File(object):
 
         return self.relative_path == other.relative_path
         
-    def as_dict(self, base_dir=None):
+    def as_dict(self):
+
+        base_dir = self.catalog_properties.base_dir
 
         file_dict = {'File Path': self.path,
                      'Filename': self.name,
@@ -542,9 +575,11 @@ class File(object):
 
     def as_tuple(self):
 
-        return (self.relative_path, self.name, self.extension, self.size, self.human_readable, self.checksum)
+        return (self.relative_path, self.name, self.extension,
+                self.size, self.human_readable, self.checksum,
+                self.catalog_properties.session_id)
 
-    def find_sub_dirs(self, base_dir):
+    def find_sub_dirs(self):
         """For a given base directory, find the relative path and return as
         list of individual directories.
         """        
@@ -556,7 +591,7 @@ class File(object):
 
     @property
     def relative_path(self):
-        return os.path.relpath(self.path, self.base_dir)
+        return os.path.relpath(self.path, self.catalog_properties.base_dir)
 
     @property
     def checksum(self):
@@ -924,6 +959,8 @@ def parse_arugments():
 
     parser = argparse.ArgumentParser(description='Process arguments for DocumentCatalog')
     parser.add_argument('-s', '--search-dir', type=str)
+    parser.add_argument('-b', '--base-dir', type=str)
+    parser.add_argument('-g', '--session-id', type=str)
     parser.add_argument('-d', '--database', type=str)
     parser.add_argument('-o', '--output', action='store_true', default=False)
     parser.add_argument('--output-file', type=str, default='Document Catalog.xlsx')
