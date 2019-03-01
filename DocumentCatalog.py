@@ -510,14 +510,9 @@ class File(object):
         return str(self.__dict__)
 
     def __eq__(self, other):
-        # Test to see if the two paths the same. First check using the
-        # faster string comparison of the lower case path and if true
-        # then check using the slower os based method.
-        if self.path.lower() == other.path.lower():
-            return os.path.samefile(self.path, other.path)
-        else:
-            return False
 
+        return self.relative_path == other.relative_path
+        
     def as_dict(self, base_dir=None):
 
         file_dict = {'File Path': self.path,
