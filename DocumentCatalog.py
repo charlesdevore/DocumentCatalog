@@ -204,7 +204,7 @@ class FileCatalog(object):
         if not row_buffer:
             row_buffer = len(self.files) % self.catalog_properties.database_row_buffer
 
-        self.cursor.executemany('INSERT INTO files VALUES (?,?,?,?,?,?,?,?,?,?,?)', [f.as_tuple() for f in self.files[-row_buffer:]])
+        self.cursor.executemany('INSERT INTO files VALUES (?,?,?,?,?,?)', [f.as_tuple() for f in self.files[-row_buffer:]])
 
         self.connection.commit()
             
@@ -247,7 +247,7 @@ class FileCatalog(object):
             for root, dirs, files in os.walk(search_dir):
                 for f in files:
                     file_path = os.path.join(root, f)
-                    file_obj = File(file_path)
+                    file_obj = File(file_path, search_dir, self.catalog_properties)
                     self.add_file(file_obj)
 
                 for exclude_dir in self.catalog_properties.exclude_dirs:
@@ -272,17 +272,12 @@ class FileCatalog(object):
             self.connection = sqlite3.connect(self.catalog_properties.database)
             self.cursor = self.connection.cursor()
             self.cursor.execute('''CREATE TABLE files
-            (path text,
+            (rel_path text,
             filename text,
             extension text,
             size integer,
             human_readable text,
-            checksum text,
-            duplicate bool,
-            directory text,
-            file_link text,
-            dir_link text,
-            link_name text)''')
+            checksum text)''')
             self.connection.commit()
 
 
@@ -322,18 +317,13 @@ class FileCatalog(object):
     def check_duplicates(self):
         hash_map = {}
 
-        hash_function = self.catalog_properties.hash_function
-        buffer_size = self.catalog_properties.buffer_size
-
         for file_obj in self.files:
-            chksum = file_obj.get_checksum(hash_function, buffer_size)
-
-            if chksum in hash_map:
+            if file_obj.checksum in hash_map:
                 file_obj.duplicate = True
 
             else:
                 file_obj.duplicate = False
-                hash_map[chksum] = True
+                hash_map[file_obj.checksum] = True
                 
 
     def get_base_dir(self):
@@ -492,7 +482,7 @@ class File(object):
 
     """
 
-    def __init__(self, path):
+    def __init__(self, path, base_dir, catalog_properties):
 
         # Check path exists
         if not os.path.isfile(path):
@@ -500,18 +490,15 @@ class File(object):
 
         # Assign constructor input parameters
         self.path = path
+        self.base_dir = base_dir
+        self.catalog_properties = catalog_properties
 
         # Set basic properties
         self.name = self.find_file_name()
         self.extension = self.find_extension()
 
-        # TODO: Refactor size to be a computed property that can be
-        # set in ExistingFile to improve file access efficiency
-        self.size = self.find_file_size()
-
-        self.hash_function = None
-        self.buffer_size = None
-        self.checksum = None
+        self._size = None
+        self._checksum = None
         self.duplicate = False
         self.dir_link = None
         self.link_dir = None
@@ -537,7 +524,7 @@ class File(object):
                      'Filename': self.name,
                      'Extension': self.extension,
                      'File Size': self.size,
-                     'Readable Size': get_human_readable(self.size),
+                     'Readable Size': self.human_readable,
                      'Checksum': self.checksum,
                      'Duplicate': self.duplicate,
                      'Directory': self.dir_link,
@@ -552,7 +539,7 @@ class File(object):
             return file_dict
 
         file_dict['Base Directory'] = base_dir
-        file_dict['Relative Path'] = os.path.relpath(self.path, base_dir)
+        file_dict['Relative Path'] = self.relative_path
         for ii, sd in enumerate(sub_dirs):
             file_dict['Subdirectory {}'.format(ii+1)] = sd
 
@@ -560,19 +547,36 @@ class File(object):
 
     def as_tuple(self):
 
-        return (self.path, self.name, self.extension, self.size, self.human_readable, self.checksum, self.duplicate, self.dir_link, self.link, self.link_dir, self.link_name)
+        return (self.relative_path, self.name, self.extension, self.size, self.human_readable, self.checksum)
 
     def find_sub_dirs(self, base_dir):
         """For a given base directory, find the relative path and return as
         list of individual directories.
         """        
-        rel_path = os.path.relpath(self.path, base_dir)
-
-        return os.path.normpath(rel_path).split(os.path.sep)[:-1]
+        return os.path.normpath(self.relative_path).split(os.path.sep)[:-1]
 
     @property
     def human_readable(self):
         return get_human_readable(self.size)
+
+    @property
+    def relative_path(self):
+        return os.path.relpath(self.path, self.base_dir)
+
+    @property
+    def checksum(self):
+        if not self._checksum:
+            self._checksum = self.find_checksum()
+
+        return self._checksum
+
+    @property
+    def size(self):
+        if not self._size:
+            self._size = self.find_file_size()
+
+        return self._size
+
     
     def find_file_name(self):
 
@@ -586,24 +590,11 @@ class File(object):
 
         return os.path.getsize(self.path)
 
-    def set_checksum(self, hash_function, buffer_size):
+    def find_checksum(self):
 
-        self.hash_function = hash_function
-        self.buffer_size = buffer_size
-        self.checksum = compute_checksum_for_file(self.path,
-                                                  self.hash_function,
-                                                  self.buffer_size)
-
-    def get_checksum(self, hash_function, buffer_size):
-
-        if self.checksum and all([self.hash_function.name == hash_function.name,
-                                  self.buffer_size == buffer_size]):
-            return self.checksum
-
-        else:
-            self.set_checksum(hash_function, buffer_size)
-            return self.checksum
-        
+        return compute_checksum_for_file(self.path,
+                                         self.catalog_properties.hash_function,
+                                         self.catalog_properties.buffer_size)
 
     def add_link(self, link_dir):
 
