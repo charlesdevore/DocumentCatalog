@@ -180,6 +180,8 @@ class FileCatalog(object):
             to each file contained within the catalog. 
 
     """
+    _files_to_database = []
+    
     def __init__(self, catalog_properties):
 
         self.catalog_properties = catalog_properties
@@ -193,6 +195,9 @@ class FileCatalog(object):
 
     def load_files(self):
 
+        self.create_database()
+        self.catalog_properties.insert_to_database(self.cursor)
+
         if self.catalog_properties.existing_catalog:
             self._load_existing_catalog()
 
@@ -203,9 +208,6 @@ class FileCatalog(object):
             N_existing_files = len(self.files)
             print('Existing Files Loaded: {}'.format(N_existing_files))
             
-        self.create_database()
-        self.catalog_properties.insert_to_database(self.cursor)
-
         self.search_for_new_files()
         if self.catalog_properties.verbose:
             N_new_files = len(self.files) - N_existing_files
@@ -218,30 +220,35 @@ class FileCatalog(object):
         # Compute duplicates
         self.check_duplicates()
 
-    def add_file(self, file_obj):
+    def add_file(self, file_obj, existing=False):
         
-        if file_obj not in self.files:
-            self.files.append(file_obj)
+        if file_obj in self.files:
+            return
+        
+        self.files.append(file_obj)
 
         if self.catalog_properties.verbose:
             print(file_obj)
-
-        if self.catalog_properties.verbose:
             sys.stdout.flush()
 
-        if len(self.files) % self.catalog_properties.database_row_buffer == 0:
-            self.insert_to_database(row_buffer = self.catalog_properties.database_row_buffer)
+        if not existing:
+            self._files_to_database.append(file_obj)
+
+        if len(self._files_to_database) == self.catalog_properties.database_row_buffer:
+            self.insert_to_database()
 
 
-    def insert_to_database(self, row_buffer=None):
+    def insert_to_database(self):
 
-        if not row_buffer:
-            row_buffer = len(self.files) % self.catalog_properties.database_row_buffer
-
-        self.cursor.executemany('INSERT INTO files VALUES (?,?,?,?,?,?,?,?)', [f.as_tuple() for f in self.files[-row_buffer:]])
+        self.cursor.executemany(
+            'INSERT INTO files VALUES (?,?,?,?,?,?,?,?)',
+            [f.as_tuple() for f in self._files_to_database])
 
         self.connection.commit()
-            
+
+        # Clear files to database array
+        self._files_to_database = []
+
     def _load_existing_catalog(self):
 
         df = self.import_existing_catalog()
@@ -254,7 +261,7 @@ class FileCatalog(object):
             info = dict(row)
             path = row['File Path']
             file_obj = ExistingFile(path, info=info, CP=CP)
-            self.add_file(file_obj)
+            self.add_file(file_obj, existing=True)
 
     def _load_existing_database(self):
 
@@ -267,7 +274,7 @@ class FileCatalog(object):
         existing_cursor = existing_conn.cursor()
 
         existing_cursor.execute('''
-        SELECT base_dir, rel_path, filename, extension, size, checksum
+        SELECT base_dir, rel_path, filename, extension, size, checksum, file_key
 	FROM files f 
 	INNER JOIN catalog_properties cp ON f.session_id = cp.session_id;
         ''')
@@ -276,7 +283,7 @@ class FileCatalog(object):
 
         for row in rows:
             file_obj = DatabaseFile(row, self.catalog_properties)
-            self.add_file(file_obj)
+            self.add_file(file_obj, existing=True)
         
         
     def import_existing_catalog(self):
@@ -640,11 +647,13 @@ class DatabaseFile(File):
     def __init__(self, row, catalog_properties):
 
         self._base_dir = row[0]
+        self._relative_path = row[1]
         self.path = os.path.join(row[0], row[1])
         self.name = row[2]
         self.extension = row[3]
         self._size = row[4]
         self._checksum = row[5]
+        self._key = row[6]
 
         self.catalog_properties = catalog_properties
 
