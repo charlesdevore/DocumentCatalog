@@ -69,6 +69,8 @@ Attributes:
         # The number of rows to buffer before inserting into the database
         self.database_row_buffer = 100
 
+        self.exclude_dirs = []
+        
         # output_file is the name of the output filename or path of
         # the output Excel spreadsheet. The file extension must be
         # xlsx. If output_file is None, then no output is generated.
@@ -145,7 +147,10 @@ Attributes:
 
         return {'Search Directories': self.search_dirs,
                 'Base Directory': self.base_dir,
-                'Database': self.database}
+                'Database': self.database,
+                'Session ID': self.session_id,
+                'Hash Function': self.hash_function.name,
+                'Buffer Size': self.buffer_size}
 
     def insert_to_database(self, cursor):
 
@@ -188,26 +193,29 @@ class FileCatalog(object):
 
     def load_files(self):
 
-        self.create_database()
-        self.catalog_properties.insert_to_database(self.cursor)
-
         if self.catalog_properties.existing_catalog:
             self._load_existing_catalog()
+
         if self.catalog_properties.existing_database:
             self._load_existing_database()
             
-        N_existing_files = len(self.files)
         if self.catalog_properties.verbose:
+            N_existing_files = len(self.files)
             print('Existing Files Loaded: {}'.format(N_existing_files))
             
+        self.create_database()
+        self.catalog_properties.insert_to_database(self.cursor)
+
         self.search_for_new_files()
-        N_new_files = len(self.files) - N_existing_files
         if self.catalog_properties.verbose:
+            N_new_files = len(self.files) - N_existing_files
             print('New Files Loaded: {}'.format(N_new_files))
 
+        # Include a final insert_to_database call to add any remaining
+        # files in the buffer
         self.insert_to_database()
         
-        # self.add_checksum()
+        # Compute duplicates
         self.check_duplicates()
 
     def add_file(self, file_obj):
@@ -218,10 +226,12 @@ class FileCatalog(object):
         if self.catalog_properties.verbose:
             print(file_obj)
 
-        sys.stdout.flush()
+        if self.catalog_properties.verbose:
+            sys.stdout.flush()
 
         if len(self.files) % self.catalog_properties.database_row_buffer == 0:
             self.insert_to_database(row_buffer = self.catalog_properties.database_row_buffer)
+
 
     def insert_to_database(self, row_buffer=None):
 
@@ -282,8 +292,7 @@ class FileCatalog(object):
         return df
 
     def import_existing_properties(self):
-
-        return CatalogProperties()
+        pass
 
     def search_for_new_files(self):
 
@@ -342,14 +351,6 @@ class FileCatalog(object):
             
             self.connection.commit()
 
-
-    def add_checksum(self):
-
-        hash_function = self.catalog_properties.hash_function
-        buffer_size = self.catalog_properties.buffer_size
-
-        for file_obj in self.files:
-            file_obj.set_checksum(hash_function, buffer_size)
 
     def check_duplicates(self):
         hash_map = {}
@@ -520,21 +521,19 @@ class File(object):
         self.name = self.find_file_name()
         self.extension = self.find_extension()
 
+        self._relative_path = None
         self._size = None
         self._checksum = None
         self._key = None
         self.duplicate = False
 
     def __str__(self):
-        
         return self.name
 
     def __eq__(self, other):
+        return self.key == other.key
 
-        return self.relative_path == other.relative_path
-        
     def as_dict(self):
-
         base_dir = self.catalog_properties.base_dir
 
         file_dict = {'File Path': self.path,
@@ -559,7 +558,6 @@ class File(object):
         return file_dict
 
     def as_tuple(self):
-
         return (self.relative_path, self.name, self.extension,
                 self.size, self.human_readable, self.checksum,
                 self.catalog_properties.session_id, self.key)
@@ -586,7 +584,9 @@ class File(object):
 
     @property
     def relative_path(self):
-        return os.path.relpath(self.path, self.catalog_properties.base_dir)
+        if not self._relative_path:
+            self._relative_path = os.path.relpath(self.path, self.catalog_properties.base_dir)
+        return self._relative_path
 
     @property
     def checksum(self):
@@ -611,19 +611,15 @@ class File(object):
 
     
     def find_file_name(self):
-
         return os.path.split(self.path)[1]
 
     def find_extension(self):
-
         return os.path.splitext(self.name)[1]
 
     def find_file_size(self):
-
         return os.path.getsize(self.path)
 
     def find_checksum(self):
-
         return compute_checksum_for_file(self.path,
                                          self.catalog_properties.hash_function,
                                          self.catalog_properties.buffer_size)
@@ -641,7 +637,6 @@ class File(object):
 
 
 class DatabaseFile(File):
-
     def __init__(self, row, catalog_properties):
 
         self._base_dir = row[0]
