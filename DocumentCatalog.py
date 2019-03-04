@@ -231,7 +231,7 @@ class FileCatalog(object):
         if not row_buffer:
             row_buffer = len(self.files) % self.catalog_properties.database_row_buffer
 
-        self.cursor.executemany('INSERT INTO files VALUES (?,?,?,?,?,?,?)', [f.as_tuple() for f in self.files[-row_buffer:]])
+        self.cursor.executemany('INSERT INTO files VALUES (?,?,?,?,?,?,?,?)', [f.as_tuple() for f in self.files[-row_buffer:]])
 
         self.connection.commit()
             
@@ -306,7 +306,9 @@ class FileCatalog(object):
             size integer,
             human_readable text,
             checksum text,
-            session_id text);
+            session_id text,
+            file_key text,
+            PRIMARY KEY(file_key));
             ''')
             self.cursor.execute('''
             CREATE TABLE catalog_properties
@@ -530,6 +532,7 @@ class File(object):
 
         self._size = None
         self._checksum = None
+        self._key = None
         self.duplicate = False
         self.dir_link = None
         self.link_dir = None
@@ -538,7 +541,7 @@ class File(object):
 
     def __str__(self):
         
-        return str(self.__dict__)
+        return self.name
 
     def __eq__(self, other):
 
@@ -577,7 +580,7 @@ class File(object):
 
         return (self.relative_path, self.name, self.extension,
                 self.size, self.human_readable, self.checksum,
-                self.catalog_properties.session_id)
+                self.catalog_properties.session_id, self.key)
 
     def find_sub_dirs(self):
         """For a given base directory, find the relative path and return as
@@ -606,6 +609,13 @@ class File(object):
             self._size = self.find_file_size()
 
         return self._size
+
+    @property
+    def key(self):
+        if not self._key:
+            self._key = self.find_key()
+
+        return self._key
 
     
     def find_file_name(self):
@@ -651,6 +661,14 @@ class File(object):
         h = hashlib.new(hashlib.sha1().name)
         h.update(self.path.encode())
         return h.hexdigest()
+
+
+    def find_key(self):
+        h = hashlib.new(hashlib.sha1().name)
+        h.update(self.path.encode())
+        h.update(self.checksum.encode())
+        return h.hexdigest()
+
 
 class ExistingFile(File):
 
