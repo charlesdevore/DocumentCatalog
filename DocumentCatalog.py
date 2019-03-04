@@ -61,6 +61,7 @@ Attributes:
 
         self.search_dir = os.getcwd()
         self.existing_catalog = None
+        self.existing_database = None
 
         # Session ID is the primary key for the search session that is
         # saved in the database
@@ -133,6 +134,10 @@ Attributes:
         if args.create_OSX_links:
             pass
 
+        if args.existing_database:
+            self.existing_database = args.existing_database
+            self.database = args.existing_database
+
         if args.database:
             self.database = args.database
 
@@ -147,7 +152,11 @@ Attributes:
 
         if args.verbose:
             self.verbose = True
-            
+
+
+    def load_existing_catalog(self):
+        
+        pass
 
     def as_dict(self):
 
@@ -201,7 +210,11 @@ class FileCatalog(object):
         self.create_database()
         self.catalog_properties.insert_to_database(self.cursor)
 
-        self.load_existing_catalog()
+        if self.catalog_properties.existing_catalog:
+            self._load_existing_catalog()
+        if self.catalog_properties.existing_database:
+            self._load_existing_database()
+            
         N_existing_files = len(self.files)
         if self.catalog_properties.verbose:
             print('Existing Files Loaded: {}'.format(N_existing_files))
@@ -223,6 +236,11 @@ class FileCatalog(object):
         if file_obj not in self.files:
             self.files.append(file_obj)
 
+        if self.catalog_properties.verbose:
+            print(file_obj)
+
+        sys.stdout.flush()
+
         if len(self.files) % self.catalog_properties.database_row_buffer == 0:
             self.insert_to_database(row_buffer = self.catalog_properties.database_row_buffer)
 
@@ -235,7 +253,7 @@ class FileCatalog(object):
 
         self.connection.commit()
             
-    def load_existing_catalog(self):
+    def _load_existing_catalog(self):
 
         df = self.import_existing_catalog()
         if df.empty:
@@ -249,7 +267,29 @@ class FileCatalog(object):
             file_obj = ExistingFile(path, info=info, CP=CP)
             self.add_file(file_obj)
 
+    def _load_existing_database(self):
 
+        if os.path.isfile(self.catalog_properties.existing_database):
+            existing_conn = sqlite3.connect(self.catalog_properties.existing_database)
+
+        else:
+            raise InputError('Error loading existing database, file does not exist.\n{}'.format(self.catalog_properties.existing_database))
+
+        existing_cursor = existing_conn.cursor()
+
+        existing_cursor.execute('''
+        SELECT base_dir, rel_path, filename, extension, size, checksum
+	FROM files f 
+	INNER JOIN catalog_properties cp ON f.session_id = cp.session_id;
+        ''')
+
+        rows = existing_cursor.fetchall()
+
+        for row in rows:
+            file_obj = DatabaseFile(row, self.catalog_properties)
+            self.add_file(file_obj)
+        
+        
     def import_existing_catalog(self):
 
         existing_filename = self.catalog_properties.existing_catalog
@@ -272,6 +312,9 @@ class FileCatalog(object):
             print('Searching...')
 
         for root, dirs, files in os.walk(self.catalog_properties.search_dir):
+            if self.catalog_properties.verbose:
+                print(root)
+
             for f in files:
                 file_path = os.path.join(root, f)
                 file_obj = File(file_path, self.catalog_properties)
@@ -280,9 +323,6 @@ class FileCatalog(object):
             for exclude_dir in self.catalog_properties.exclude_dirs:
                 if exclude_dir in dirs:
                     dirs.remove(exclude_dir)
-
-            if self.catalog_properties.verbose:
-                print(root)
 
     def create_database(self):
 
@@ -589,6 +629,16 @@ class File(object):
         return os.path.normpath(self.relative_path).split(os.path.sep)[:-1]
 
     @property
+    def base_dir(self):
+        if self._base_dir:
+            return self._base_dir
+        
+        if self.catalog_properties.base_dir:
+            return self.catalog_properties.base_dir
+
+        return None
+    
+    @property
     def human_readable(self):
         return get_human_readable(self.size)
 
@@ -668,6 +718,21 @@ class File(object):
         h.update(self.path.encode())
         h.update(self.checksum.encode())
         return h.hexdigest()
+
+
+
+class DatabaseFile(File):
+
+    def __init__(self, row, catalog_properties):
+
+        self._base_dir = row[0]
+        self.path = os.path.join(row[0], row[1])
+        self.name = row[2]
+        self.extension = row[3]
+        self._size = row[4]
+        self._checksum = row[5]
+
+        self.catalog_properties = catalog_properties
 
 
 class ExistingFile(File):
@@ -980,6 +1045,7 @@ def parse_arugments():
     parser.add_argument('-b', '--base-dir', type=str)
     parser.add_argument('-g', '--session-id', type=str)
     parser.add_argument('-d', '--database', type=str)
+    parser.add_argument('-e', '--existing-database', type=str)
     parser.add_argument('-o', '--output', action='store_true', default=False)
     parser.add_argument('--output-file', type=str, default='Document Catalog.xlsx')
     parser.add_argument('-i', '--input-file', type=str)
