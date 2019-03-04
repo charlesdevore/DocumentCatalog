@@ -1,9 +1,8 @@
 """ 
 DocumentCatalog
 
-Module used to catalog documents and their metadata in an Excel
-spreadsheet. Includes a shortened hard link to facilitate linking to
-documents.
+Module used to catalog documents and their metadata in SQLite3
+database with an option to export to an Excel spreadsheet. 
 
 Charles DeVore
 June 2018
@@ -45,8 +44,6 @@ Attributes:
         should be saved.
     base_dir (str): The base directory that should be used as the 
         pivot to compute the subdirectory columns.
-    link (bool): Whether hard links should be constructed.
-    link_dir (str): Location where hard links should be saved.
     exclude_dirs (list of strings): List of directories to exclude 
         from file search. Stored as relative paths and used to 
         exclude through entire search path.
@@ -78,10 +75,6 @@ Attributes:
         self.output_file = None
 
         self.base_dir = None
-
-        self.link = False
-        self.link_dir = os.path.join(os.getcwd(), '_Links')
-        self.exclude_dirs = ['_Links']
 
         self.hash_function = hashlib.sha1()
         self.buffer_size = 65536
@@ -124,16 +117,6 @@ Attributes:
             self.copy_dir = args.copy_dir
             self.copy_key = args.copy_key
 
-        if args.create_links:
-            self.link = True
-            if args.link_dir:
-                self.link_dir = os.path.realpath(args.link_dir)
-            else:
-                self.link_dir = os.path.realpath(os.path.join(os.curdir, '_Links'))
-            
-        if args.create_OSX_links:
-            pass
-
         if args.existing_database:
             self.existing_database = args.existing_database
             self.database = args.existing_database
@@ -162,18 +145,16 @@ Attributes:
 
         return {'Search Directories': self.search_dirs,
                 'Base Directory': self.base_dir,
-                'Link Directory': self.link_dir,
                 'Database': self.database}
 
     def insert_to_database(self, cursor):
 
-        cursor.execute('INSERT INTO catalog_properties VALUES (?,?,?,?,?,?,?)', self.as_tuple())
+        cursor.execute('INSERT INTO catalog_properties VALUES (?,?,?,?,?,?)', self.as_tuple())
 
     def as_tuple(self):
 
         return (self.session_id, self.search_dir, self.base_dir,
-                self.link_dir, self.hash_function.name,
-                self.buffer_size,
+                self.hash_function.name, self.buffer_size,
                 datetime.datetime.isoformat(datetime.datetime.utcnow()))
 
 
@@ -226,8 +207,6 @@ class FileCatalog(object):
 
         self.insert_to_database()
         
-        # Add computed properties to files
-        self.add_links()
         # self.add_checksum()
         self.check_duplicates()
 
@@ -355,7 +334,6 @@ class FileCatalog(object):
             (session_id text,
             search_dir text,
             base_dir text,
-            link_dir text,
             hash_function text,
             hash_buffer_size integer,
             date text,
@@ -365,31 +343,6 @@ class FileCatalog(object):
             self.connection.commit()
 
 
-    def add_links(self):
-
-        if self.catalog_properties.link:
-
-            link_dir = self.catalog_properties.link_dir
-
-            if not os.path.isdir(link_dir):
-                os.mkdir(link_dir)
-
-            # Check length of link_dir to ensure that links will be under
-            # Excel limit of 256 characters. Assume max link value of 45.
-            if len(link_dir) > (256-45):
-                print("""The link directory is {} characters long and
-                may result in hyperlinks not working. Please find a
-                new link directory with a shorter
-                path.""".format(len(link_dir)))
-                user_continue = input('Continue? [Y/n]')
-                if not (lower(user_continue) == 'y' or not user_continue):
-                    self.link = False
-                    return
-
-            for file_obj in self.files:
-                file_obj.add_link(link_dir)
-
-                
     def add_checksum(self):
 
         hash_function = self.catalog_properties.hash_function
@@ -515,7 +468,7 @@ class FileCatalog(object):
         ordered_cols += sub_dir_cols
 
         goal_cols = ['Filename', 'Extension', 'File Size', 'Readable Size',
-                     'Checksum', 'Duplicate', 'File Link', 'Directory']
+                     'Checksum', 'Duplicate']
 
         for gc in goal_cols:
             if gc in columns:
@@ -550,9 +503,6 @@ class File(object):
             during checksum computation.
         duplicate (bool): Whether a file is a duplicate based on the 
             checksum.
-        dir_link (str): An Excel function hyperlink to the directory.
-        link_dir (str): The directory that the link is saved in.
-        link (str): An Excel function hyperlink to the file link.
 
     """
 
@@ -574,10 +524,6 @@ class File(object):
         self._checksum = None
         self._key = None
         self.duplicate = False
-        self.dir_link = None
-        self.link_dir = None
-        self.link = None
-        self.link_name = None
 
     def __str__(self):
         
@@ -597,11 +543,7 @@ class File(object):
                      'File Size': self.size,
                      'Readable Size': self.human_readable,
                      'Checksum': self.checksum,
-                     'Duplicate': self.duplicate,
-                     'Directory': self.dir_link,
-                     'File Link': self.link,
-                     'Link Directory': self.link_dir,
-                     'Link Name': self.link_name}
+                     'Duplicate': self.duplicate}
         
         if base_dir:
             sub_dirs = self.find_sub_dirs(base_dir)
@@ -686,32 +628,9 @@ class File(object):
                                          self.catalog_properties.hash_function,
                                          self.catalog_properties.buffer_size)
 
-    def add_link(self, link_dir):
-
-        if not self.link or self.link_dir is link_dir:
-
-            self.link_dir = link_dir
-            self.link_name = self.find_link_name() + self.extension
-
-            long_name = long_file_name(self.path)
-
-            os.link(long_name, self.link_path())
-
-            self.link = '=hyperlink("{}","File")'.format(self.link_path())
-
-            self.dir_link = '=hyperlink("{}","Link")'.format(self.directory_path())
-
     def directory_path(self):
         return os.path.split(self.path)[0]
             
-    def link_path(self):
-        return os.path.join(self.link_dir, self.link_name)
-
-    def find_link_name(self):
-        h = hashlib.new(hashlib.sha1().name)
-        h.update(self.path.encode())
-        return h.hexdigest()
-
 
     def find_key(self):
         h = hashlib.new(hashlib.sha1().name)
@@ -735,58 +654,6 @@ class DatabaseFile(File):
         self.catalog_properties = catalog_properties
 
 
-class ExistingFile(File):
-
-    def __init__(self, path, info=None, CP=None):
-
-        super().__init__(path)
-
-        self.input_info = info
-        self.input_CP = CP
-
-        self.process_input()
-
-    def __eq__(self, other):
-        
-        return super().__eq__(other)
-
-    def __str__(self):
-
-        return super().__str__()
-
-    def process_input(self):
-        if self.input_info:
-            self.process_input_info()
-
-        if self.input_CP:
-            self.process_input_CP()
-
-    def process_input_info(self):
-
-        key_attr = {'File Size': 'size',
-                    'Checksum':  'checksum',
-                    'Duplicate': 'duplicate'}
-
-        for key in self.input_info:
-            value = self.input_info[key]
-            if key in key_attr:
-                attr  = key_attr[key]
-                setattr(self, attr, value)
-                # print(key, value, getattr(self, attr))
-
-    def process_input_CP(self):
-
-        key_attr = {'hash_function': 'hash_function',
-                    'buffer_size':   'buffer_size'}                    
-                
-        for key in self.input_CP.__dict__:
-            value = getattr(self.input_CP, key)
-            if key in key_attr:
-                attr = key_attr[key]
-                setattr(self, attr, value)
-                # print(key, value, getattr(self, attr))
-
-    
 def copy_files(source_dir, dest_dir, batch_file = 'run_DC_copy.bat', allow_dest_exist=False):
 
     """
@@ -1055,9 +922,6 @@ def parse_arugments():
     parser.add_argument('--output-copy-dir', type=str)
     parser.add_argument('--allow-overwrite', action='store_true', default=False)
     parser.add_argument('--exclude-directories', nargs='+')
-    parser.add_argument('--link-dir', type=str)
-    parser.add_argument('-l', '--create-links', action='store_true', default=False)
-    parser.add_argument('--create-OSX-links', action='store_true', default=False)
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
     parser.add_argument('--do-not-check-existing-file-paths', action='store_true', default=False)
 
