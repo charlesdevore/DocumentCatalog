@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Database Browser</title>
+    <link rel="stylesheet" href="codemirror/lib/codemirror.css">
+    <link rel="stylesheet" href="demo.css">
+    <script src="codemirror/lib/codemirror.js"></script>
+    
+  </head>
+  <body>
+    <h1>Local Database Browser</h1>
+    <main>
+      <label for='commands'>Enter SQL commands here:</label>
+      <br>
+      <textarea id="commands"></textarea>
+      <button id="execute" class="button">Execute</button>
+      <label class="button">Load an SQLite database file: <input type='file' id='dbfile' ></label>
+
+      <div id="error" class="error"></div>
+
+      <pre id="output">Results will be displayed here</pre>
+    </main>
+  </body>
+  
+
+  <script src='js/gui.js'></script>
+  <script src='js/sql.js'></script>
+  <script type="text/javascript">
+    function selectFolder(e) {
+    var theFiles = e.target.files;
+    var relativePath = theFiles[0].webkitRelativePath;
+    var folder = relativePath.split("/");
+    alert(folder[0]);
+    }
+  </script>
+</html>
