@@ -81,6 +81,8 @@ Attributes:
         self.hash_function = hashlib.sha1()
         self.buffer_size = 65536
 
+        self.check_file_contents = True
+        
         self.verbose = False
 
         # Use input args to set Catalog parameters
@@ -135,6 +137,9 @@ Attributes:
                 print('Error with output file, extension not .xlsx')
                 raise InputError
 
+        if args.do_not_check_file_contents:
+            self.check_file_contents = False
+            
         if args.verbose:
             self.verbose = True
 
@@ -197,6 +202,8 @@ class FileCatalog(object):
 
         self.create_database()
         self.catalog_properties.insert_to_database(self.cursor)
+        self.connection.commit()
+        print('Session ID: {}'.format(self.catalog_properties.session_id))
 
         if self.catalog_properties.existing_catalog:
             self._load_existing_catalog()
@@ -204,6 +211,7 @@ class FileCatalog(object):
         if self.catalog_properties.existing_database:
             self._load_existing_database()
             
+
         if self.catalog_properties.verbose:
             N_existing_files = len(self.files)
             print('Existing Files Loaded: {}'.format(N_existing_files))
@@ -215,10 +223,11 @@ class FileCatalog(object):
 
         # Include a final insert_to_database call to add any remaining
         # files in the buffer
-        self.insert_to_database()
+        if len(self._files_to_database) > 0:
+            self.insert_to_database()
         
         # Compute duplicates
-        self.check_duplicates()
+        # self.check_duplicates()
 
     def add_file(self, file_obj, existing=False):
         
@@ -227,7 +236,7 @@ class FileCatalog(object):
         
         self.files.append(file_obj)
 
-        if self.catalog_properties.verbose:
+        if self.catalog_properties.verbose and not existing:
             print(file_obj)
             sys.stdout.flush()
 
@@ -312,8 +321,13 @@ class FileCatalog(object):
 
             for f in files:
                 file_path = os.path.join(root, f)
-                file_obj = File(file_path, self.catalog_properties)
-                self.add_file(file_obj)
+                try:
+                    file_obj = File(file_path, self.catalog_properties)
+                    self.add_file(file_obj)
+
+                except:
+                    print('Error loading {}'.format(file_path))
+                    
 
             for exclude_dir in self.catalog_properties.exclude_dirs:
                 if exclude_dir in dirs:
@@ -538,7 +552,10 @@ class File(object):
         return self.name
 
     def __eq__(self, other):
-        return self.key == other.key
+        if self.catalog_properties.check_file_contents:
+            return self.key == other.key
+
+        return self.relative_path == other.relative_path
 
     def as_dict(self):
         base_dir = self.catalog_properties.base_dir
@@ -928,6 +945,7 @@ def parse_arugments():
     parser.add_argument('--exclude-directories', nargs='+')
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
     parser.add_argument('--do-not-check-existing-file-paths', action='store_true', default=False)
+    parser.add_argument('--do-not-check-file-contents', action='store_true', default=False)
 
     return parser.parse_args()
 
