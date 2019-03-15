@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Document Catalog File Browser</title>
+    <link rel="stylesheet" href="css/index.css">
+  </head>
+  <body>
+    <h1>Document Catalog File Browser</h1>
+    <main>
+      <div id="input-div">
+        <label class="input">Upload a Document Catalog database:<br>
+          <input type="file" id="dbupload">
+        </label>
+      </div>
+      <br>
+      <textarea id="preamble" hidden autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>SELECT filename AS "File Name", human_readable AS "File Size", extension AS "Extension", rel_path AS "Relative Path", file_key AS "Unique ID", cp.base_dir || "\" || rel_path AS "URI" FROM files INNER JOIN catalog_properties cp ON cp.session_id = files.session_id </textarea>
+      <label for="commands">Enter SQL commands here:</label>
+      <br>
+      <div id="command-div">
+        <textarea id="commands" class="commandinput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+WHERE "File Name" = "RE  Export request for MEIC and CUG from Chevon.msg"
+ORDER BY rel_path;
+        </textarea>
+      </div>
+      <br>
+      <button id="execute" class="button">Execute</button>
+      <div id="error" class="error"></div>
+      <div id="output-wrapper" class="outer-container">
+        <pre id="output">Results will be displayed here</pre>
+      </div>
+    </main>
+  </body>
+
+  <script src="js/sql.js"></script>
+  <script src="js/viewer.js"></script>
+</html>
