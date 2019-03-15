@@ -1,9 +1,8 @@
 """ 
 DocumentCatalog
 
-Module used to catalog documents and their metadata in an Excel
-spreadsheet. Includes a shortened hard link to facilitate linking to
-documents.
+Module used to catalog documents and their metadata in SQLite3
+database with an option to export to an Excel spreadsheet. 
 
 Charles DeVore
 June 2018
@@ -18,6 +17,9 @@ import hashlib
 import datetime
 import xlsxwriter
 import win32com.client
+import sqlite3
+import random
+import string
 
 class CatalogProperties(object):
     """CatalogProperties provides an interface for FileCatalog.
@@ -36,12 +38,12 @@ Attributes:
         paths of where to search for files.  
     existing_catalog (str): Filename or path to filename containing a
         spreadsheet with an existing document catalog.
+    database (str): Filename of the SQLite3 database to store
+        intermediate results.
     output_file (str): Filename or path where the output spreadsheet
         should be saved.
     base_dir (str): The base directory that should be used as the 
         pivot to compute the subdirectory columns.
-    link (bool): Whether hard links should be constructed.
-    link_dir (str): Location where hard links should be saved.
     exclude_dirs (list of strings): List of directories to exclude 
         from file search. Stored as relative paths and used to 
         exclude through entire search path.
@@ -54,9 +56,21 @@ Attributes:
 
     def __init__(self, args=None):
 
-        self.search_dirs = [os.getcwd()]
+        self.search_dir = os.getcwd()
         self.existing_catalog = None
+        self.existing_database = None
 
+        # Session ID is the primary key for the search session that is
+        # saved in the database
+        self.session_id = None
+
+        self.database = 'document_catalog.db'
+
+        # The number of rows to buffer before inserting into the database
+        self.database_row_buffer = 100
+
+        self.exclude_dirs = []
+        
         # output_file is the name of the output filename or path of
         # the output Excel spreadsheet. The file extension must be
         # xlsx. If output_file is None, then no output is generated.
@@ -64,13 +78,11 @@ Attributes:
 
         self.base_dir = None
 
-        self.link = False
-        self.link_dir = os.path.join(os.getcwd(), '_Links')
-        self.exclude_dirs = ['_Links']
-
         self.hash_function = hashlib.sha1()
         self.buffer_size = 65536
 
+        self.check_file_contents = True
+        
         self.verbose = False
 
         # Use input args to set Catalog parameters
@@ -84,7 +96,17 @@ Attributes:
             self.exclude_dirs = args.exclude_directories
 
         if args.search_dir:
-            self.search_dirs = [args.search_dir]
+            self.search_dir = args.search_dir
+
+        if args.base_dir:
+            self.base_dir = args.base_dir
+        else:
+            self.base_dir = self.search_dir
+
+        if args.session_id:
+            self.session_id = args.session_id
+        else:
+            self.session_id = ''.join([random.choice(string.ascii_lowercase) for ii in range(4)])
 
         if args.input_file:
             if os.path.isfile(args.input_file):
@@ -99,15 +121,12 @@ Attributes:
             self.copy_dir = args.copy_dir
             self.copy_key = args.copy_key
 
-        if args.create_links:
-            self.link = True
-            if args.link_dir:
-                self.link_dir = os.path.realpath(args.link_dir)
-            else:
-                self.link_dir = os.path.realpath(os.path.join(os.curdir, '_Links'))
-            
-        if args.create_OSX_links:
-            pass
+        if args.existing_database:
+            self.existing_database = args.existing_database
+            self.database = args.existing_database
+
+        if args.database:
+            self.database = args.database
 
         if args.output:
             file_out = args.output_file
@@ -118,16 +137,35 @@ Attributes:
                 print('Error with output file, extension not .xlsx')
                 raise InputError
 
+        if args.do_not_check_file_contents:
+            self.check_file_contents = False
+            
         if args.verbose:
             self.verbose = True
-            
+
+
+    def load_existing_catalog(self):
+        
+        pass
 
     def as_dict(self):
 
         return {'Search Directories': self.search_dirs,
                 'Base Directory': self.base_dir,
-                'Link Directory': self.link_dir}
-    
+                'Database': self.database,
+                'Session ID': self.session_id,
+                'Hash Function': self.hash_function.name,
+                'Buffer Size': self.buffer_size}
+
+    def insert_to_database(self, cursor):
+
+        cursor.execute('INSERT INTO catalog_properties VALUES (?,?,?,?,?,?)', self.as_tuple())
+
+    def as_tuple(self):
+
+        return (self.session_id, self.search_dir, self.base_dir,
+                self.hash_function.name, self.buffer_size,
+                datetime.datetime.isoformat(datetime.datetime.utcnow()))
 
 
 class FileCatalog(object):
@@ -147,6 +185,8 @@ class FileCatalog(object):
             to each file contained within the catalog. 
 
     """
+    _files_to_database = []
+    
     def __init__(self, catalog_properties):
 
         self.catalog_properties = catalog_properties
@@ -160,27 +200,65 @@ class FileCatalog(object):
 
     def load_files(self):
 
-        self.load_existing_catalog()
-        N_existing_files = len(self.files)
+        self.create_database()
+        self.catalog_properties.insert_to_database(self.cursor)
+        self.connection.commit()
+        print('Session ID: {}'.format(self.catalog_properties.session_id))
+
+        if self.catalog_properties.existing_catalog:
+            self._load_existing_catalog()
+
+        if self.catalog_properties.existing_database:
+            self._load_existing_database()
+            
+
         if self.catalog_properties.verbose:
+            N_existing_files = len(self.files)
             print('Existing Files Loaded: {}'.format(N_existing_files))
             
         self.search_for_new_files()
-        N_new_files = len(self.files) - N_existing_files
         if self.catalog_properties.verbose:
+            N_new_files = len(self.files) - N_existing_files
             print('New Files Loaded: {}'.format(N_new_files))
 
-        # Add computed properties to files
-        self.add_links()
-        # self.add_checksum()
-        self.check_duplicates()
-
-    def add_file(self, file_obj):
+        # Include a final insert_to_database call to add any remaining
+        # files in the buffer
+        if len(self._files_to_database) > 0:
+            self.insert_to_database()
         
-        if file_obj not in self.files:
-            self.files.append(file_obj)
-            
-    def load_existing_catalog(self):
+        # Compute duplicates
+        # self.check_duplicates()
+
+    def add_file(self, file_obj, existing=False):
+        
+        if file_obj in self.files:
+            return
+        
+        self.files.append(file_obj)
+
+        if self.catalog_properties.verbose and not existing:
+            print(file_obj)
+            sys.stdout.flush()
+
+        if not existing:
+            self._files_to_database.append(file_obj)
+
+        if len(self._files_to_database) == self.catalog_properties.database_row_buffer:
+            self.insert_to_database()
+
+
+    def insert_to_database(self):
+
+        self.cursor.executemany(
+            'INSERT INTO files VALUES (?,?,?,?,?,?,?,?)',
+            [f.as_tuple() for f in self._files_to_database])
+
+        self.connection.commit()
+
+        # Clear files to database array
+        self._files_to_database = []
+
+    def _load_existing_catalog(self):
 
         df = self.import_existing_catalog()
         if df.empty:
@@ -192,9 +270,31 @@ class FileCatalog(object):
             info = dict(row)
             path = row['File Path']
             file_obj = ExistingFile(path, info=info, CP=CP)
-            self.add_file(file_obj)
+            self.add_file(file_obj, existing=True)
 
+    def _load_existing_database(self):
 
+        if os.path.isfile(self.catalog_properties.existing_database):
+            existing_conn = sqlite3.connect(self.catalog_properties.existing_database)
+
+        else:
+            raise InputError('Error loading existing database, file does not exist.\n{}'.format(self.catalog_properties.existing_database))
+
+        existing_cursor = existing_conn.cursor()
+
+        existing_cursor.execute('''
+        SELECT base_dir, rel_path, filename, extension, size, checksum, file_key
+	FROM files f 
+	INNER JOIN catalog_properties cp ON f.session_id = cp.session_id;
+        ''')
+
+        rows = existing_cursor.fetchall()
+
+        for row in rows:
+            file_obj = DatabaseFile(row, self.catalog_properties)
+            self.add_file(file_obj, existing=True)
+        
+        
     def import_existing_catalog(self):
 
         existing_filename = self.catalog_properties.existing_catalog
@@ -208,85 +308,82 @@ class FileCatalog(object):
         return df
 
     def import_existing_properties(self):
-
-        return CatalogProperties()
+        pass
 
     def search_for_new_files(self):
 
         if self.catalog_properties.verbose:
             print('Searching...')
-        for search_dir in self.catalog_properties.search_dirs:
-            for root, dirs, files in os.walk(search_dir):
-                for f in files:
-                    file_path = os.path.join(root, f)
-                    file_obj = File(file_path)
+
+        for root, dirs, files in os.walk(self.catalog_properties.search_dir):
+            if self.catalog_properties.verbose:
+                print(root)
+
+            for f in files:
+                file_path = os.path.join(root, f)
+                try:
+                    file_obj = File(file_path, self.catalog_properties)
                     self.add_file(file_obj)
 
-                for exclude_dir in self.catalog_properties.exclude_dirs:
-                    if exclude_dir in dirs:
-                        dirs.remove(exclude_dir)
+                except:
+                    print('Error loading {}'.format(file_path))
+                    
 
-                if self.catalog_properties.verbose:
-                    print(root)
+            for exclude_dir in self.catalog_properties.exclude_dirs:
+                if exclude_dir in dirs:
+                    dirs.remove(exclude_dir)
 
+    def create_database(self):
 
-    def add_links(self):
+        if os.path.isfile(self.catalog_properties.database):
+            usr_response = input('Warning: {} already exists, continue writing to database? [y/N]'.format(self.catalog_properties.database))
+            if not usr_response.lower() == 'y':
+                self.catalog_properties.database = input('Please enter new database name: ')
+                self.create_database()
 
-        if self.catalog_properties.link:
+            self.connection = sqlite3.connect(self.catalog_properties.database)
+            self.cursor = self.connection.cursor()
 
-            link_dir = self.catalog_properties.link_dir
+        else:
+            self.connection = sqlite3.connect(self.catalog_properties.database)
+            self.cursor = self.connection.cursor()
+            self.cursor.execute('''
+            CREATE TABLE files
+            (rel_path text,
+            filename text,
+            extension text,
+            size integer,
+            human_readable text,
+            checksum text,
+            session_id text,
+            file_key text,
+            PRIMARY KEY(file_key));
+            ''')
+            self.cursor.execute('''
+            CREATE TABLE catalog_properties
+            (session_id text,
+            search_dir text,
+            base_dir text,
+            hash_function text,
+            hash_buffer_size integer,
+            date text,
+            PRIMARY KEY(session_id ASC));
+            ''')
+            
+            self.connection.commit()
 
-            if not os.path.isdir(link_dir):
-                os.mkdir(link_dir)
-
-            # Check length of link_dir to ensure that links will be under
-            # Excel limit of 256 characters. Assume max link value of 45.
-            if len(link_dir) > (256-45):
-                print("""The link directory is {} characters long and
-                may result in hyperlinks not working. Please find a
-                new link directory with a shorter
-                path.""".format(len(link_dir)))
-                user_continue = input('Continue? [Y/n]')
-                if not (lower(user_continue) == 'y' or not user_continue):
-                    self.link = False
-                    return
-
-            for file_obj in self.files:
-                file_obj.add_link(link_dir)
-
-                
-    def add_checksum(self):
-
-        hash_function = self.catalog_properties.hash_function
-        buffer_size = self.catalog_properties.buffer_size
-
-        for file_obj in self.files:
-            file_obj.set_checksum(hash_function, buffer_size)
 
     def check_duplicates(self):
         hash_map = {}
 
-        hash_function = self.catalog_properties.hash_function
-        buffer_size = self.catalog_properties.buffer_size
-
         for file_obj in self.files:
-            chksum = file_obj.get_checksum(hash_function, buffer_size)
-
-            if chksum in hash_map:
+            if file_obj.checksum in hash_map:
                 file_obj.duplicate = True
 
             else:
                 file_obj.duplicate = False
-                hash_map[chksum] = True
+                hash_map[file_obj.checksum] = True
                 
-
-    def get_base_dir(self):
-
-        if not self.catalog_properties.base_dir:
-            paths = [f.path for f in self.files]
-            self.catalog_properties.base_dir = os.path.commonpath(paths)
-
-        return self.catalog_properties.base_dir
 
     def export(self):
         if self.catalog_properties.output_file:
@@ -365,9 +462,7 @@ class FileCatalog(object):
 
     def as_df(self):
 
-        base_dir = self.get_base_dir()
-
-        files = [f.as_dict(base_dir) for f in self.files]
+        files = [f.as_dict() for f in self.files]
 
         df = pd.DataFrame(files)
         
@@ -395,7 +490,7 @@ class FileCatalog(object):
         ordered_cols += sub_dir_cols
 
         goal_cols = ['Filename', 'Extension', 'File Size', 'Readable Size',
-                     'Checksum', 'Duplicate', 'File Link', 'Directory']
+                     'Checksum', 'Duplicate']
 
         for gc in goal_cols:
             if gc in columns:
@@ -430,13 +525,10 @@ class File(object):
             during checksum computation.
         duplicate (bool): Whether a file is a duplicate based on the 
             checksum.
-        dir_link (str): An Excel function hyperlink to the directory.
-        link_dir (str): The directory that the link is saved in.
-        link (str): An Excel function hyperlink to the file link.
 
     """
 
-    def __init__(self, path):
+    def __init__(self, path, catalog_properties):
 
         # Check path exists
         if not os.path.isfile(path):
@@ -444,50 +536,37 @@ class File(object):
 
         # Assign constructor input parameters
         self.path = path
+        self.catalog_properties = catalog_properties
 
         # Set basic properties
         self.name = self.find_file_name()
         self.extension = self.find_extension()
 
-        # TODO: Refactor size to be a computed property that can be
-        # set in ExistingFile to improve file access efficiency
-        self.size = self.find_file_size()
-
-        self.hash_function = None
-        self.buffer_size = None
-        self.checksum = None
+        self._relative_path = None
+        self._size = None
+        self._checksum = None
+        self._key = None
         self.duplicate = False
-        self.dir_link = None
-        self.link_dir = None
-        self.link = None
-        self.link_name = None
 
     def __str__(self):
-        
-        return str(self.__dict__)
+        return self.name
 
     def __eq__(self, other):
-        # Test to see if the two paths the same. First check using the
-        # faster string comparison of the lower case path and if true
-        # then check using the slower os based method.
-        if self.path.lower() == other.path.lower():
-            return os.path.samefile(self.path, other.path)
-        else:
-            return False
+        if self.catalog_properties.check_file_contents:
+            return self.key == other.key
 
-    def as_dict(self, base_dir=None):
+        return self.relative_path == other.relative_path
+
+    def as_dict(self):
+        base_dir = self.catalog_properties.base_dir
 
         file_dict = {'File Path': self.path,
                      'Filename': self.name,
                      'Extension': self.extension,
                      'File Size': self.size,
-                     'Readable Size': get_human_readable(self.size),
+                     'Readable Size': self.human_readable,
                      'Checksum': self.checksum,
-                     'Duplicate': self.duplicate,
-                     'Directory': self.dir_link,
-                     'File Link': self.link,
-                     'Link Directory': self.link_dir,
-                     'Link Name': self.link_name}
+                     'Duplicate': self.duplicate}
         
         if base_dir:
             sub_dirs = self.find_sub_dirs(base_dir)
@@ -496,129 +575,106 @@ class File(object):
             return file_dict
 
         file_dict['Base Directory'] = base_dir
-        file_dict['Relative Path'] = os.path.relpath(self.path, base_dir)
+        file_dict['Relative Path'] = self.relative_path
         for ii, sd in enumerate(sub_dirs):
             file_dict['Subdirectory {}'.format(ii+1)] = sd
 
         return file_dict
 
-    def find_sub_dirs(self, base_dir):
+    def as_tuple(self):
+        return (self.relative_path, self.name, self.extension,
+                self.size, self.human_readable, self.checksum,
+                self.catalog_properties.session_id, self.key)
+
+    def find_sub_dirs(self):
         """For a given base directory, find the relative path and return as
         list of individual directories.
         """        
-        rel_path = os.path.relpath(self.path, base_dir)
+        return os.path.normpath(self.relative_path).split(os.path.sep)[:-1]
 
-        return os.path.normpath(rel_path).split(os.path.sep)[:-1]
+    @property
+    def base_dir(self):
+        if self._base_dir:
+            return self._base_dir
         
-    def find_file_name(self):
+        if self.catalog_properties.base_dir:
+            return self.catalog_properties.base_dir
 
+        return None
+    
+    @property
+    def human_readable(self):
+        return get_human_readable(self.size)
+
+    @property
+    def relative_path(self):
+        if not self._relative_path:
+            self._relative_path = os.path.relpath(self.path, self.catalog_properties.base_dir)
+        return self._relative_path
+
+    @property
+    def checksum(self):
+        if not self._checksum:
+            self._checksum = self.find_checksum()
+
+        return self._checksum
+
+    @property
+    def size(self):
+        if not self._size:
+            self._size = self.find_file_size()
+
+        return self._size
+
+    @property
+    def key(self):
+        if not self._key:
+            self._key = self.find_key()
+
+        return self._key
+
+    
+    def find_file_name(self):
         return os.path.split(self.path)[1]
 
     def find_extension(self):
-
         return os.path.splitext(self.name)[1]
 
     def find_file_size(self):
-
         return os.path.getsize(self.path)
 
-    def set_checksum(self, hash_function, buffer_size):
-
-        self.hash_function = hash_function
-        self.buffer_size = buffer_size
-        self.checksum = compute_checksum_for_file(self.path,
-                                                  self.hash_function,
-                                                  self.buffer_size)
-
-    def get_checksum(self, hash_function, buffer_size):
-
-        if self.checksum and all([self.hash_function.name == hash_function.name,
-                                  self.buffer_size == buffer_size]):
-            return self.checksum
-
-        else:
-            self.set_checksum(hash_function, buffer_size)
-            return self.checksum
-        
-
-    def add_link(self, link_dir):
-
-        if not self.link or self.link_dir is link_dir:
-
-            self.link_dir = link_dir
-            self.link_name = self.find_link_name() + self.extension
-
-            long_name = long_file_name(self.path)
-
-            os.link(long_name, self.link_path())
-
-            self.link = '=hyperlink("{}","File")'.format(self.link_path())
-
-            self.dir_link = '=hyperlink("{}","Link")'.format(self.directory_path())
+    def find_checksum(self):
+        return compute_checksum_for_file(self.path,
+                                         self.catalog_properties.hash_function,
+                                         self.catalog_properties.buffer_size)
 
     def directory_path(self):
         return os.path.split(self.path)[0]
             
-    def link_path(self):
-        return os.path.join(self.link_dir, self.link_name)
 
-    def find_link_name(self):
+    def find_key(self):
         h = hashlib.new(hashlib.sha1().name)
         h.update(self.path.encode())
+        h.update(self.checksum.encode())
         return h.hexdigest()
 
-class ExistingFile(File):
 
-    def __init__(self, path, info=None, CP=None):
 
-        super().__init__(path)
+class DatabaseFile(File):
+    def __init__(self, row, catalog_properties):
 
-        self.input_info = info
-        self.input_CP = CP
+        self._base_dir = row[0]
+        self._relative_path = row[1]
+        self.path = os.path.join(row[0], row[1])
+        self.name = row[2]
+        self.extension = row[3]
+        self._size = row[4]
+        self._checksum = row[5]
+        self._key = row[6]
 
-        self.process_input()
+        self.catalog_properties = catalog_properties
 
-    def __eq__(self, other):
-        
-        return super().__eq__(other)
 
-    def __str__(self):
-
-        return super().__str__()
-
-    def process_input(self):
-        if self.input_info:
-            self.process_input_info()
-
-        if self.input_CP:
-            self.process_input_CP()
-
-    def process_input_info(self):
-
-        key_attr = {'File Size': 'size',
-                    'Checksum':  'checksum',
-                    'Duplicate': 'duplicate'}
-
-        for key in self.input_info:
-            value = self.input_info[key]
-            if key in key_attr:
-                attr  = key_attr[key]
-                setattr(self, attr, value)
-                # print(key, value, getattr(self, attr))
-
-    def process_input_CP(self):
-
-        key_attr = {'hash_function': 'hash_function',
-                    'buffer_size':   'buffer_size'}                    
-                
-        for key in self.input_CP.__dict__:
-            value = getattr(self.input_CP, key)
-            if key in key_attr:
-                attr = key_attr[key]
-                setattr(self, attr, value)
-                # print(key, value, getattr(self, attr))
-
-    
 def copy_files(source_dir, dest_dir, batch_file = 'run_DC_copy.bat', allow_dest_exist=False):
 
     """
@@ -874,6 +930,10 @@ def parse_arugments():
 
     parser = argparse.ArgumentParser(description='Process arguments for DocumentCatalog')
     parser.add_argument('-s', '--search-dir', type=str)
+    parser.add_argument('-b', '--base-dir', type=str)
+    parser.add_argument('-g', '--session-id', type=str)
+    parser.add_argument('-d', '--database', type=str)
+    parser.add_argument('-e', '--existing-database', type=str)
     parser.add_argument('-o', '--output', action='store_true', default=False)
     parser.add_argument('--output-file', type=str, default='Document Catalog.xlsx')
     parser.add_argument('-i', '--input-file', type=str)
@@ -883,11 +943,9 @@ def parse_arugments():
     parser.add_argument('--output-copy-dir', type=str)
     parser.add_argument('--allow-overwrite', action='store_true', default=False)
     parser.add_argument('--exclude-directories', nargs='+')
-    parser.add_argument('--link-dir', type=str)
-    parser.add_argument('-l', '--create-links', action='store_true', default=False)
-    parser.add_argument('--create-OSX-links', action='store_true', default=False)
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
     parser.add_argument('--do-not-check-existing-file-paths', action='store_true', default=False)
+    parser.add_argument('--do-not-check-file-contents', action='store_true', default=False)
 
     return parser.parse_args()
 
