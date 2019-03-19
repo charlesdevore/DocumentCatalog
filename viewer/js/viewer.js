@@ -137,3 +137,68 @@ dbFileElement.onchange = function() {
     r.readAsArrayBuffer(f);
 }
 
+
+// Export results table to CSV
+function exportTableToCSV(filename) {
+    let csv = [];
+
+    // Extract header columns and store in array
+    extractHeader(csv);
+    
+    // Extract body table
+    extractBody(csv);
+    
+    // Download CSV file
+    downloadCSV(csv.join("\n"), filename);
+}
+
+function extractBody(csv) {
+    // Extract data rows from body table and store in csv array
+    let rows = document.getElementById('bodytable').querySelectorAll('tr');
+
+    for (let i = 0; i < rows.length; i++) {
+        let row = [];
+        let cells = rows[i].querySelectorAll('td');
+
+        for (let j = 0; j < cells.length; j++) {
+            row.push(cells[j].innerText);
+        }
+        csv.push('"'+row.join('","')+'"');
+    }
+}
+
+function extractHeader(csv) {
+    // Extract header columns from result table
+    let headerCols = document.getElementById('headertable').querySelectorAll('th');
+    let header = [];
+    for (let j = 0; j < headerCols.length; j++) {
+        header.push(headerCols[j].innerText);        
+    }
+    csv.push('"'+header.join('","')+'"');
+}
+
+function downloadCSV(csv, filename) {
+    let csvFile;
+    let downloadLink;
+
+    // CSV file
+    csvFile = new Blob([csv], {type: "text/csv"});
+
+    // Download link
+    downloadLink = document.createElement("a");
+
+    // File name
+    downloadLink.download = filename;
+
+    // Create a link to the file
+    downloadLink.href = window.URL.createObjectURL(csvFile);
+
+    // Hide download link
+    downloadLink.style.display = "none";
+
+    // Add the link to DOM
+    document.body.appendChild(downloadLink);
+
+    // Click download link
+    downloadLink.click();
+}

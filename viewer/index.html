@@ -13,12 +13,14 @@
         </label>
       </div>
       <br>
+      <button onclick="exportTableToCSV('results.csv')">Export Results To CSV File</button>
+      <br>
       <textarea id="preamble" hidden autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>SELECT filename AS "File Name", human_readable AS "File Size", extension AS "Extension", rel_path AS "Relative Path", file_key AS "Unique ID", cp.base_dir || "\" || rel_path AS "URI" FROM files INNER JOIN catalog_properties cp ON cp.session_id = files.session_id </textarea>
       <label for="commands">Enter SQL commands here:</label>
       <br>
       <div id="command-div">
         <textarea id="commands" class="commandinput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
-WHERE "File Name" = "%"
+WHERE "File Name" LIKE "G1-TD-%"
 AND "Extension" = ".pdf"
 ORDER BY "Relative Path";
         </textarea>
