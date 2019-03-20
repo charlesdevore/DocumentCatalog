@@ -96,9 +96,15 @@ let tableCreate = function () {
 }();
 
 function getCommands () {
-    let preamble = document.getElementById('preamble').innerText
-    
-    return preamble + inputElement.value + ';'
+    let basicDiv = document.getElementById('basic');
+    let advancedDiv = document.getElementById('advanced');
+    if (basicDiv.hidden & !advancedDiv.hidden) {
+        return buildAdvancedCommand();
+    } else if (!basicDiv.hidden & advancedDiv.hidden) {
+        return buildBasicCommand();
+    } else {
+        error(Error('Conflicting state in Basic/Advanced views'));
+    }
 }
 
 // Execute the commands when the button is clicked
@@ -210,4 +216,92 @@ function downloadCSV(csv, filename) {
 
     // Click download link
     downloadLink.click();
+}
+
+
+// Switch to Advanced view
+function switchAdvancedView() {
+    document.getElementById('basic').hidden=true;
+    document.getElementById('advanced').hidden=false;
+}
+
+// Switch to Basic view
+function switchBasicView() {
+    document.getElementById('advanced').hidden=true;
+    document.getElementById('basic').hidden=false;
+}
+
+
+// Function to control the state of the radio checkboxes
+function clickedRadioAll() {
+    let allRadio = document.getElementById('all-radio');
+    if (allRadio.checked) {
+        setRadioFiletypes(true);
+    } else {
+        setRadioFiletypes(false);
+    }
+}
+
+
+// Function set the disabled parameter for all the radio filetype options except all files.
+function setRadioFiletypes(state) {
+    document.getElementById('pdf-docs-radio').disabled = state;
+    document.getElementById('word-docs-radio').disabled = state;
+    document.getElementById('xls-docs-radio').disabled = state;
+}
+
+
+function buildBasicCommand() {
+    let sqlCommand = ''
+
+    let searchString = document.getElementById('searchbar').value;
+    // Pre- and post-pend the search string with SQL wildcard
+    searchString = '"%' + searchString + '%"';
+
+    // Replace * and whitespace with SQL wildcard
+    searchString = searchString.replace(/[\*|\s]/g, '%');
+
+    let searchField = document.getElementById('search-field');
+    sqlCommand += 'WHERE';
+    if (searchField.value == 'select-filename') {
+        sqlCommand += ' "File Name" ';
+    } else if (searchField.value == 'select-relpath') {
+        sqlCommand += ' "Relative Path" ';
+    } else if (searchField.value == 'select-filekey') {
+        sqlCommand += ' "Unique Id" ';
+    } else {
+        error(Error('Undefined search field'));
+    }
+    
+    sqlCommand += 'LIKE ';
+    sqlCommand += searchString;
+
+    // Set the extension clauses
+    if (!document.getElementById('all-radio').checked) {
+        let extensions = [];
+        if (document.getElementById('pdf-docs-radio').checked) {
+            extensions.push(' extension = ".pdf" ');
+        }
+        if (document.getElementById('word-docs-radio').checked) {
+            extensions.push(' extension LIKE ".doc%" ');
+        }
+        if (document.getElementById('xls-docs-radio').checked) {
+            extensions.push(' extension LIKE ".xl%" ');
+        }
+        if (extensions.length == 1) {
+            sqlCommand += ' AND ' + extensions[0];
+        } else if (extensions.length > 1) {
+            sqlCommand += ' AND ( ' + extensions[0];
+            for (let i = 1; i < extensions.length; i++) {
+                sqlCommand += ' OR ' + extensions[i];
+            }
+            sqlCommand += ' ) ';
+        }
+    }
+    
+    return document.getElementById('preamble').innerText + sqlCommand + ';';
+}
+
+function buildAdvancedCommand() {
+    return document.getElementById('preamble').innerText + inputElement.value + ';';
 }

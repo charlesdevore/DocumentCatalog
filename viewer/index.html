@@ -7,26 +7,52 @@
   <body>
     <h1>Document Catalog File Browser</h1>
     <main>
-      <div id="input-div">
-        <label class="input">Upload a Document Catalog database:<br>
-          <input type="file" id="dbupload">
-        </label>
+      <div id="header">
+        <a class="header-anchor" onclick="switchBasicView()">Basic</a>
+        <a class="header-anchor" onclick="switchAdvancedView()">Advanced</a>
+        <a class="header-anchor" onclick="exportTableToCSV('results.csv')">Export Results</a>
+        <a class="header-anchor">Export Query</a>
+        <label class="input">Load Database<input type="file" id="dbupload"></label>
       </div>
       <br>
-      <button onclick="exportTableToCSV('results.csv')">Export Results To CSV File</button>
-      <br>
-      <textarea id="preamble" hidden autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>SELECT filename AS "File Name", human_readable AS "File Size", extension AS "Extension", rel_path AS "Relative Path", file_key AS "Unique ID", cp.base_dir || "\" || rel_path AS "URI" FROM files INNER JOIN catalog_properties cp ON cp.session_id = files.session_id </textarea>
-      <label for="commands">Enter SQL commands here:</label>
-      <br>
-      <div id="command-div">
-        <textarea id="commands" class="commandinput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <div id="advanced" hidden="true">
+        <textarea id="preamble" hidden autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>SELECT filename AS "File Name", human_readable AS "File Size", extension AS "Extension", rel_path AS "Relative Path", file_key AS "Unique ID", cp.base_dir || "\" || rel_path AS "URI" FROM files INNER JOIN catalog_properties cp ON cp.session_id = files.session_id </textarea>
+        <label for="commands">Enter SQL commands here:</label>
+        <br>
+        <div id="command-div">
+          <textarea id="commands" class="commandinput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
 WHERE "File Name" LIKE "G1-TD-%"
 AND "Extension" = ".pdf"
 ORDER BY "Relative Path";
-        </textarea>
+          </textarea>
+        </div>
       </div>
       <br>
-      <button id="execute" class="button">Execute</button>
+      <div id="basic">
+        <div id="searchbar-filetype-div">
+          <input type="text" id="searchbar"></input>
+          <select id="search-field">
+            <option value="select-filename">File Name</option>
+            <option value="select-relpath">Relative Path</option>
+            <option value="select-filekey">Unique Id</option>
+          </select>
+        </div>
+        <br>
+        <div id="filetype-radio">
+          <input type="checkbox" id="all-radio" name="all-radio" onclick="clickedRadioAll()">
+          <label for="all-radio">All Files</label>
+          <input type="checkbox" id="pdf-docs-radio" name="pdf-docs-radio">
+          <label for="pdf-docs-radio">PDFs</label>
+          <input type="checkbox" id="word-docs-radio" name="word-docs-radio">
+          <label for="word-docs-radio">Word Documents</label>
+          <input type="checkbox" id="xls-docs-radio" name="xls-docs-radio">
+          <label for="xls-docs-radio">Excel Spreadsheets</label>
+        </div>
+      </div>
+      <br>
+      <div id="search-button-div">
+        <button id="execute" class="button">Search</button>
+      </div>
       <div class="error"><p id="error"></p></div>
       <div id="output-wrapper" class="outer-container">
         <pre id="output">Results will be displayed here</pre>

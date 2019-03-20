@@ -13,17 +13,40 @@ body{
     font-family: sans-serif;
 }
 
+#header {
+    text-align: center;
+    border-bottom: double;
+}
+
+.header-anchor {
+    margin: 10px;
+    text-decoration: underline;
+}    
+
+.header-anchor:hover {
+    /* box-shadow: 0 0 2px #222; */
+    color: grey;
+}
+
 h1 {
     text-align: center;
     color: #222;
-    margin: 0 0 30px;
+    margin: 0 0 10px;
+}
+
+.input {
+    text-decoration: underline;
+}
+.input:hover {
+    color: grey;
 }
 
 #dbupload {
     color: #333;
     border: 1px solid #222;
     border-radius: 3px;
-    width: 50%;
+    width: 250px;
+    margin: 10px;
 }
 
 .button {
@@ -60,6 +83,27 @@ h1 {
     resize: none;
     padding: 4px;
 }
+
+#searchbar-filetype-div {
+    text-align: center;
+}
+
+#searchbar {
+    width: 80%;
+    max-width: 600px;
+}
+
+#filetype-radio {
+    text-align: center;
+}
+
+#search-button-div {
+    text-align: center;
+}    
+
+#execute {
+    width: 200px;
+}               
 
 .error {
     color:red;
