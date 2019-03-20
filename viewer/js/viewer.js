@@ -3,21 +3,28 @@ let executeButton = document.getElementById("execute");
 let outputElement = document.getElementById("output");
 let errorElement  = document.getElementById("error");
 let dbFileElement = document.getElementById("dbupload");
-
+let isError = false;
 
 function error(e) {
     console.log(e);
     errorElement.style.height = '2em';
-    errorElement.textContent = e.message;
+    errorElement.hidden = false;
+    errorElement.innerText = e.message;
 }
 
 function noerror() {
-    errorElement.style.height = '0';
+    errorElement.hidden = true;
+    isError = false;
 }
 
 // Run a command in the database
 function execute(commands) {
     results = db.exec(commands);
+    if (results.length == 0) {
+        error(Error('Command returned no results.'));
+        isError = true;
+        return;
+    };
     outputElement.innerHTML = (tableCreate(results[0].columns, results[0].values)).outerHTML;
     if (results.length != 1) {
         alert("Please only run one SQL command at a time.");
@@ -98,7 +105,9 @@ function getCommands () {
 function executeEditorContents () {
     noerror()
     execute (getCommands());
-
+    if (isError){
+        return;
+    }
     // Resize the div container
     let innerDiv = document.getElementById('innerContainerDiv')
     let headerDiv = document.getElementById('headerdiv');

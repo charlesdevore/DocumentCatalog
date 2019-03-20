@@ -63,7 +63,7 @@ h1 {
 
 .error {
     color:red;
-    transition:.5s;
+    /* transition:.5s; */
     overflow:hidden;
 }
 
