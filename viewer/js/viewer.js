@@ -42,9 +42,7 @@ let tableCreate = function () {
         return open + vals.join(close + open) + close;
     }
     function buildDataCell(val) {
-        let cell = document.createElement('td');
-        cell.innerHTML = val;
-        return cell.outerHTML;
+        return '<td>' + val + '</td>';
     }
     
     function buildDataRow(vals) {
@@ -99,9 +97,9 @@ function getCommands () {
     let basicDiv = document.getElementById('basic');
     let advancedDiv = document.getElementById('advanced');
     if (basicDiv.hidden & !advancedDiv.hidden) {
-        return buildAdvancedCommand();
+        return document.getElementById('preamble').innerText + buildAdvancedCommand() + ';';
     } else if (!basicDiv.hidden & advancedDiv.hidden) {
-        return buildBasicCommand();
+        return document.getElementById('preamble').innerText + buildBasicCommand() + ';';
     } else {
         error(Error('Conflicting state in Basic/Advanced views'));
     }
@@ -110,6 +108,10 @@ function getCommands () {
 // Execute the commands when the button is clicked
 function executeEditorContents () {
     noerror()
+
+    // clear results table
+    outputElement.innerHTML = '';
+    
     execute (getCommands());
     if (isError){
         return;
@@ -118,7 +120,7 @@ function executeEditorContents () {
     let innerDiv = document.getElementById('innerContainerDiv')
     let headerDiv = document.getElementById('headerdiv');
     let bodyDiv = document.getElementById('bodydiv');
-    let height = headerDiv.clientHeight + bodyDiv.clientHeight;
+    let height = headerDiv.clientHeight + bodyDiv.clientHeight + 16;
     innerDiv.setAttribute('style', `height:${height}px;`);
 
     // Update header row cell width
@@ -139,7 +141,12 @@ function executeEditorContents () {
 }
 executeButton.addEventListener("click", executeEditorContents, true);
 
-
+function handleSearchKeyPress(e) {
+    if (e.keyCode == 13) {
+        e.preventDefault();
+        executeEditorContents();
+    }
+}
 
 // Load a db from a file
 dbFileElement.onchange = function() {
@@ -150,6 +157,11 @@ dbFileElement.onchange = function() {
         db = new SQL.Database(Uints);
     }
     r.readAsArrayBuffer(f);
+}
+
+// Export query to text file
+function exportQuery(filename) {
+    downloadFile(buildBasicCommand(), filename, 'text/plain');
 }
 
 
@@ -164,7 +176,7 @@ function exportTableToCSV(filename) {
     extractBody(csv);
     
     // Download CSV file
-    downloadCSV(csv.join("\n"), filename);
+    downloadFile(csv.join("\n"), filename, 'text/csv');
 }
 
 function extractBody(csv) {
@@ -192,12 +204,12 @@ function extractHeader(csv) {
     csv.push('"'+header.join('","')+'"');
 }
 
-function downloadCSV(csv, filename) {
-    let csvFile;
+function downloadFile(csv, filename, fileType) {
+    let outFile;
     let downloadLink;
 
     // CSV file
-    csvFile = new Blob([csv], {type: "text/csv"});
+    outFile = new Blob([csv], {type: "`${fileType}`"});
 
     // Download link
     downloadLink = document.createElement("a");
@@ -206,7 +218,7 @@ function downloadCSV(csv, filename) {
     downloadLink.download = filename;
 
     // Create a link to the file
-    downloadLink.href = window.URL.createObjectURL(csvFile);
+    downloadLink.href = window.URL.createObjectURL(outFile);
 
     // Hide download link
     downloadLink.style.display = "none";
@@ -222,6 +234,7 @@ function downloadCSV(csv, filename) {
 // Switch to Advanced view
 function switchAdvancedView() {
     document.getElementById('basic').hidden=true;
+    document.getElementById('commands').innerHTML = buildBasicCommand()
     document.getElementById('advanced').hidden=false;
 }
 
@@ -252,7 +265,8 @@ function setRadioFiletypes(state) {
 
 
 function buildBasicCommand() {
-    let sqlCommand = ''
+    let sqlCommand = '';
+    let sortCommand = '';
 
     let searchString = document.getElementById('searchbar').value;
     // Pre- and post-pend the search string with SQL wildcard
@@ -265,10 +279,13 @@ function buildBasicCommand() {
     sqlCommand += 'WHERE';
     if (searchField.value == 'select-filename') {
         sqlCommand += ' "File Name" ';
+        sortCommand = '\nORDER BY "File Name"';
     } else if (searchField.value == 'select-relpath') {
         sqlCommand += ' "Relative Path" ';
+        sortCommand = '\nORDER BY "Relative Path"';
     } else if (searchField.value == 'select-filekey') {
         sqlCommand += ' "Unique Id" ';
+        sortCommand = '\nORDER BY "File Name"';
     } else {
         error(Error('Undefined search field'));
     }
@@ -289,19 +306,24 @@ function buildBasicCommand() {
             extensions.push(' extension LIKE ".xl%" ');
         }
         if (extensions.length == 1) {
-            sqlCommand += ' AND ' + extensions[0];
+            sqlCommand += ' \n AND ' + extensions[0];
         } else if (extensions.length > 1) {
-            sqlCommand += ' AND ( ' + extensions[0];
+            sqlCommand += ' \n AND ( ' + extensions[0];
             for (let i = 1; i < extensions.length; i++) {
-                sqlCommand += ' OR ' + extensions[i];
+                sqlCommand += ' \n OR ' + extensions[i];
             }
             sqlCommand += ' ) ';
         }
     }
+
+    // Determine if duplicates should be included or not
+    if (!document.getElementById('duplicates').checked) {
+        sqlCommand += '\nGROUP BY checksum';
+    };
     
-    return document.getElementById('preamble').innerText + sqlCommand + ';';
+    return sqlCommand + sortCommand;
 }
 
 function buildAdvancedCommand() {
-    return document.getElementById('preamble').innerText + inputElement.value + ';';
+    return inputElement.value;
 }

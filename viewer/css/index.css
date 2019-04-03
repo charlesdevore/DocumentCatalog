@@ -112,20 +112,22 @@ h1 {
 }
 
 #output {
-    overflow: auto;
+    /* overflow: auto; */
 }
 
 .outer-container {
     position: relative;
-    overflow: visible;
     width: 100%;
     height: auto;
+    overflow: visible;
 }
 
 .inner-container {
     width: auto;
     height: auto;
     position: relative;
+    overflow-x: scroll;
+    overflow-y: hidden;
 }
 
 .table-header {

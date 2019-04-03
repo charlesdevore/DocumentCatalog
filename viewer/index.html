@@ -11,35 +11,32 @@
         <a class="header-anchor" onclick="switchBasicView()">Basic</a>
         <a class="header-anchor" onclick="switchAdvancedView()">Advanced</a>
         <a class="header-anchor" onclick="exportTableToCSV('results.csv')">Export Results</a>
-        <a class="header-anchor">Export Query</a>
+        <a class="header-anchor" onclick="exportQuery('query.txt')">Export Query</a>
         <label class="input">Load Database<input type="file" id="dbupload"></label>
       </div>
       <br>
       <div id="advanced" hidden="true">
-        <textarea id="preamble" hidden autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>SELECT filename AS "File Name", human_readable AS "File Size", extension AS "Extension", rel_path AS "Relative Path", file_key AS "Unique ID", cp.base_dir || "\" || rel_path AS "URI" FROM files INNER JOIN catalog_properties cp ON cp.session_id = files.session_id </textarea>
-        <label for="commands">Enter SQL commands here:</label>
-        <br>
+        <textarea id="preamble" hidden autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>SELECT filename AS "File Name", human_readable AS "File Size", extension AS "Extension", rel_path AS "Relative Path", checksum AS "Checksum", file_key AS "Unique ID", cp.base_dir || "\" || rel_path AS "URI" FROM files INNER JOIN catalog_properties cp ON cp.session_id = files.session_id </textarea>
         <div id="command-div">
-          <textarea id="commands" class="commandinput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
-WHERE "File Name" LIKE "G1-TD-%"
-AND "Extension" = ".pdf"
-ORDER BY "Relative Path";
-          </textarea>
+          <br>
+          <textarea id="commands" class="commandinput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/></textarea>
         </div>
       </div>
-      <br>
       <div id="basic">
+        <br>
         <div id="searchbar-filetype-div">
-          <input type="text" id="searchbar"></input>
+          <input type="text" id="searchbar" onkeypress="handleSearchKeyPress(event)"></input>
           <select id="search-field">
             <option value="select-filename">File Name</option>
             <option value="select-relpath">Relative Path</option>
             <option value="select-filekey">Unique Id</option>
           </select>
+          <input type="checkbox" id="duplicates" name="dupe-checkbox">
+          <label for="dupe-checkbox">Include Duplicates</label>
         </div>
         <br>
         <div id="filetype-radio">
-          <input type="checkbox" id="all-radio" name="all-radio" onclick="clickedRadioAll()">
+          <input type="checkbox" id="all-radio" name="all-radio" onclick="clickedRadioAll()" checked>
           <label for="all-radio">All Files</label>
           <input type="checkbox" id="pdf-docs-radio" name="pdf-docs-radio">
           <label for="pdf-docs-radio">PDFs</label>
@@ -55,7 +52,7 @@ ORDER BY "Relative Path";
       </div>
       <div class="error"><p id="error"></p></div>
       <div id="output-wrapper" class="outer-container">
-        <pre id="output">Results will be displayed here</pre>
+        <pre id="output"></pre>
       </div>
     </main>
   </body>
