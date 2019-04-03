@@ -304,7 +304,7 @@ function buildTabulatorTable(columns, values) {
         if (rowData.hasOwnProperty('URI')) {
             let fileLink = document.createElement('a');
             
-            fileLink.href = rowData['URI'];
+            fileLink.href = rowData['URI'].replace(/#/,'%23');
             fileLink.target = '_blank';
             fileLink.style.display = 'none';
             
