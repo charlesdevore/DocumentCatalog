@@ -10,19 +10,27 @@ function error(e) {
     errorElement.style.height = '2em';
     errorElement.hidden = false;
     errorElement.innerText = e.message;
+    outputElement.hidden = true;
+    isError = true;
 }
 
 function noerror() {
     errorElement.hidden = true;
     isError = false;
+    outputElement.hidden = false;
 }
 
 // Run a command in the database
 function execute(commands) {
+
+    if (typeof(db) == "undefined") {
+        error(Error('No database file defined. Please load database using link above.'));
+        return;
+    };
+    
     results = db.exec(commands);
     if (results.length == 0) {
         error(Error('Command returned no results.'));
-        isError = true;
         return;
     };
 
@@ -52,6 +60,7 @@ function executeEditorContents () {
 
     // clear results table
     outputElement.innerHTML = '';
+    // outputElement.style.height = 0;
     
     execute (getCommands());
     if (isError){
