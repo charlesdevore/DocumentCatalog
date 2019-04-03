@@ -30,7 +30,7 @@ function execute(commands) {
         alert("Please only run one SQL command at a time.");
     };
 
-    buildTabulatorTable(results[0].columns, results[0].values);
+    table = buildTabulatorTable(results[0].columns, results[0].values);
 }
 
 
@@ -86,16 +86,7 @@ function exportQuery(filename) {
 
 // Export results table to CSV
 function exportTableToCSV(filename) {
-    let csv = [];
-
-    // Extract header columns and store in array
-    extractHeader(csv);
-    
-    // Extract body table
-    extractBody(csv);
-    
-    // Download CSV file
-    downloadFile(csv.join("\n"), filename, 'text/csv');
+    table.download('csv', filename);
 }
 
 function downloadFile(csv, filename, fileType) {
@@ -328,5 +319,6 @@ function buildTabulatorTable(columns, values) {
         },
     });
 
+    return table;
     
 }
