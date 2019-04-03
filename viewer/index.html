@@ -3,6 +3,7 @@
   <head>
     <title>Document Catalog File Browser</title>
     <link rel="stylesheet" href="css/index.css">
+    <link rel="stylesheet" href="css/tabulator.min.css">
   </head>
   <body>
     <h1>Document Catalog File Browser</h1>
@@ -51,12 +52,14 @@
         <button id="execute" class="button">Search</button>
       </div>
       <div class="error"><p id="error"></p></div>
-      <div id="output-wrapper" class="outer-container">
-        <pre id="output"></pre>
+      <div id="tabulator-output-container" class="output-container">
+        <div id="tabulator-table">
+        </div>
       </div>
     </main>
   </body>
 
-  <script src="js/sql.js"></script>
-  <script src="js/viewer.js"></script>
+  <script type="text/javascript" src="js/sql.js"></script>
+  <script type="text/javascript" src="js/viewer.js"></script>
+  <script type="text/javascript" src="js/tabulator.min.js"></script>
 </html>

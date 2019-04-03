@@ -1,6 +1,6 @@
 let inputElement  = document.getElementById("commands");
 let executeButton = document.getElementById("execute");
-let outputElement = document.getElementById("output");
+let outputElement = document.getElementById("tabulator-table");
 let errorElement  = document.getElementById("error");
 let dbFileElement = document.getElementById("dbupload");
 let isError = false;
@@ -25,73 +25,14 @@ function execute(commands) {
         isError = true;
         return;
     };
-    outputElement.innerHTML = (tableCreate(results[0].columns, results[0].values)).outerHTML;
+
     if (results.length != 1) {
         alert("Please only run one SQL command at a time.");
     };
-    // Resize the div containers
-    let innerDiv = document.getElementById('innerContainerDiv')
-    innerDiv.style.height = outputElement.style.height;
+
+    buildTabulatorTable(results[0].columns, results[0].values);
 }
 
-// Create an HTML table
-let tableCreate = function () {
-    function valconcat(vals, tagName) {
-        if (vals.length === 0) return '';
-        var open = '<'+tagName+'>', close='</'+tagName+'>';
-        return open + vals.join(close + open) + close;
-    }
-    function buildDataCell(val) {
-        return '<td>' + val + '</td>';
-    }
-    
-    function buildDataRow(vals) {
-        let row = document.createElement('tr');
-        let children = []
-        let anchor = document.createElement('a');
-
-        // The URI must be located in the last column and the text of
-        // the link is the first column
-        anchor.href = vals.slice(-1)[0]
-        anchor.innerText = vals[0]
-        anchor.target = "_blank"
-
-        row.innerHTML = buildDataCell(anchor.outerHTML) + vals.slice(1).map(buildDataCell).join('')
-        
-        return row.outerHTML
-    }
-    return function (columns, values){
-        let innerContainer = document.createElement('div');
-        innerContainer.setAttribute('id', 'innerContainerDiv');
-        innerContainer.setAttribute('class', 'inner-container');
-        let headerDiv = document.createElement('div');
-        headerDiv.setAttribute('id', 'headerdiv');
-        headerDiv.setAttribute('class', 'table-header');
-        let headerTable = document.createElement('table');
-        headerTable.setAttribute('id', 'headertable');
-
-        headerTable.innerHTML = '<thead>' + valconcat(columns, 'th') + '</thead>';
-        headerDiv.innerHTML = headerTable.outerHTML;
-
-        let bodyDiv = document.createElement('div');
-        bodyDiv.setAttribute('id', 'bodydiv');
-        bodyDiv.setAttribute('class', 'table-body');
-        bodyDiv.setAttribute('onscroll',
-                              "document.getElementById('headerdiv').scrollLeft = this.scrollLeft;");
-        let bodyTable = document.createElement('table');
-        bodyTable.setAttribute('id', 'bodytable');
-
-        // let rows = values.map(function(v){ return valconcat(v, 'td'); });
-        // bodyTable.innerHTML = '<tbody>' + valconcat(rows, 'tr') + '</tbody>';
-
-        bodyTable.innerHTML = values.map(buildDataRow).join('')
-        bodyDiv.innerHTML = bodyTable.outerHTML;
-
-        innerContainer.innerHTML = headerDiv.outerHTML + bodyDiv.outerHTML;
-
-        return innerContainer;
-    }
-}();
 
 function getCommands () {
     let basicDiv = document.getElementById('basic');
@@ -116,28 +57,6 @@ function executeEditorContents () {
     if (isError){
         return;
     }
-    // Resize the div container
-    let innerDiv = document.getElementById('innerContainerDiv')
-    let headerDiv = document.getElementById('headerdiv');
-    let bodyDiv = document.getElementById('bodydiv');
-    let height = headerDiv.clientHeight + bodyDiv.clientHeight + 16;
-    innerDiv.setAttribute('style', `height:${height}px;`);
-
-    // Update header row cell width
-    let headerTable = document.getElementById('headertable');
-    let headerRow = headerTable.children[0].children[0];
-    let bodyTable = document.getElementById('bodytable');
-    let bodyRow = bodyTable.children[0].children[0];
-
-    // Update headerTable width based on bodyTable with an additional 16px for the vertical
-    // scrollbar
-    headerTable.width = bodyTable.offsetWidth + 16;
-
-    // Update each cell's width and subtract 4px for padding on the left and right
-    for (let ii = 0; ii < headerRow.children.length; ii++) {
-        headerRow.children[ii].width = bodyRow.children[ii].offsetWidth - 4;
-    };
-    headerRow.children[0].width -= 4;
 }
 executeButton.addEventListener("click", executeEditorContents, true);
 
@@ -177,31 +96,6 @@ function exportTableToCSV(filename) {
     
     // Download CSV file
     downloadFile(csv.join("\n"), filename, 'text/csv');
-}
-
-function extractBody(csv) {
-    // Extract data rows from body table and store in csv array
-    let rows = document.getElementById('bodytable').querySelectorAll('tr');
-
-    for (let i = 0; i < rows.length; i++) {
-        let row = [];
-        let cells = rows[i].querySelectorAll('td');
-
-        for (let j = 0; j < cells.length; j++) {
-            row.push(cells[j].innerText);
-        }
-        csv.push('"'+row.join('","')+'"');
-    }
-}
-
-function extractHeader(csv) {
-    // Extract header columns from result table
-    let headerCols = document.getElementById('headertable').querySelectorAll('th');
-    let header = [];
-    for (let j = 0; j < headerCols.length; j++) {
-        header.push(headerCols[j].innerText);        
-    }
-    csv.push('"'+header.join('","')+'"');
 }
 
 function downloadFile(csv, filename, fileType) {
@@ -326,4 +220,113 @@ function buildBasicCommand() {
 
 function buildAdvancedCommand() {
     return inputElement.value;
+}
+
+
+// Tabulator Commands
+function buildExampleTabulatorTable() {
+
+    let tabledata = [
+        {id:1, name:"Oli Bob", age:"12", col:"red", dob:""},
+        {id:2, name:"Mary May", age:"1", col:"blue", dob:"14/05/1982"},
+        {id:3, name:"Christine Lobowski", age:"42", col:"green", dob:"22/05/1982"},
+        {id:4, name:"Brendon Philips", age:"125", col:"orange", dob:"01/08/1980"},
+        {id:5, name:"Margret Marmajuke", age:"16", col:"yellow", dob:"31/01/1999"},
+    ];
+
+    let table = new Tabulator("#tabulator-table", {
+        height:100,
+        data:tabledata,
+        layout:"fitColumns",
+        columns:[
+	    {title:"Name", field:"name", width:150},
+	    {title:"Age", field:"age", align:"left", formatter:"progress"},
+	    {title:"Favourite Color", field:"col"},
+	    {title:"Date Of Birth", field:"dob", sorter:"date", align:"center"},
+        ],
+        rowClick:function(e, row){
+            alert("Row " + row.getData().id + " Clicked!");
+        },
+    });
+
+}
+        
+
+function buildTabulatorTable(columns, values) {
+    function processInputColumns(columns) {
+        let tableColumns = []
+        for (let i=0; i < columns.length; i++) {
+            if (columns[i] == "File Name") {
+                tableColumns.push({id:i, title:"File Name", field:"fname", minWidth:150});
+            } else if (columns[i] == "File Size") {
+                tableColumns.push({id:i, title:"File Size", field:"hread", minWidth:50});
+            } else if (columns[i] == "Extension") {
+                tableColumns.push({id:i, title:"Extension", field:"ext", minWidth:50});
+            } else if (columns[i] == "Relative Path") {
+                tableColumns.push({id:i, title:"Relative Path", field:"rpath", minWidth:150});
+            } else {
+                tableColumns.push({id:i, title:columns[i], field:columns[i].replace(/\s/, '')});
+            }
+        }
+
+        return tableColumns;
+    }
+
+    function processInputValues(values, tableColumns) {
+        let tableData = []
+
+        for (let i=0; i < values.length; i++) {
+            let row = {}
+            // let anchor = document.createElement('a');
+
+            // anchor.href = values[i].slice(-1)[0];
+            // anchor.innerText = values[i][0];
+            // anchor.target = '_blank';
+           
+            // row['id'] = i;
+            // row['fname'] = anchor;
+
+            // for (let j=1; j < values[i].length; j++) {
+            //     row[tableColumns[j]['field']] = values[i][j];
+            // }
+
+            for (let j=0; j < values[i].length; j++) {
+                row[tableColumns[j]['field']] = values[i][j];
+            }
+            
+            tableData.push(row);
+        }
+
+        return tableData;
+    }
+
+    function openFile(rowData) {
+        if (rowData.hasOwnProperty('URI')) {
+            let fileLink = document.createElement('a');
+            
+            fileLink.href = rowData['URI'];
+            fileLink.target = '_blank';
+            fileLink.style.display = 'none';
+            
+            document.body.appendChild(fileLink);
+            fileLink.click();
+        } else {
+            alert('URI not defined for this row');
+        }
+    }
+
+    let tableColumns = processInputColumns(columns);
+    let tableData = processInputValues(values, tableColumns);
+    
+    let table = new Tabulator("#tabulator-table", {
+        height:400,
+        data:tableData,
+        layout:"fitData",
+        columns:tableColumns,
+        rowClick:function(e, row){
+            openFile(row.getData());
+        },
+    });
+
+    
 }
