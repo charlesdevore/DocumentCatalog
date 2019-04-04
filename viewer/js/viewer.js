@@ -128,7 +128,8 @@ function downloadFile(csv, filename, fileType) {
 // Switch to Advanced view
 function switchAdvancedView() {
     document.getElementById('basic').hidden=true;
-    document.getElementById('commands').innerHTML = buildBasicCommand()
+    inputElement.value = '';
+    inputElement.value = buildBasicCommand();
     document.getElementById('advanced').hidden=false;
 }
 
