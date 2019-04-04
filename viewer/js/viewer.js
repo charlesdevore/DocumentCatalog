@@ -260,10 +260,12 @@ function buildTabulatorTable(columns, values) {
                 tableColumns.push({id:i, title:"File Name", field:"fname", minWidth:150});
             } else if (columns[i] == "File Size") {
                 tableColumns.push({id:i, title:"File Size", field:"hread", minWidth:50});
-            } else if (columns[i] == "Extension") {
-                tableColumns.push({id:i, title:"Extension", field:"ext", minWidth:50});
+            } else if (columns[i] == "File Type") {
+                tableColumns.push({id:i, title:"File Type", field:"ext", minWidth:50});
             } else if (columns[i] == "Relative Path") {
                 tableColumns.push({id:i, title:"Relative Path", field:"rpath", minWidth:150});
+            } else if (columns[i] == "Unique ID") {
+                tableColumns.push({id:i, title:"Unique ID", field:"filekey"});
             } else {
                 tableColumns.push({id:i, title:columns[i], field:columns[i].replace(/\s/, '')});
             }
