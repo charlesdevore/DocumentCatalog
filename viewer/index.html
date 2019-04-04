@@ -17,7 +17,7 @@
       </div>
       <br>
       <div id="advanced" hidden="true">
-        <textarea id="preamble" hidden autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>SELECT filename AS "File Name", human_readable AS "File Size", extension AS "Extension", rel_path AS "Relative Path", checksum AS "Checksum", file_key AS "Unique ID", cp.base_dir || "\" || rel_path AS "URI" FROM files INNER JOIN catalog_properties cp ON cp.session_id = files.session_id </textarea>
+        <textarea id="preamble" hidden autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>SELECT filename AS "File Name", human_readable AS "File Size", extension AS "File Type", rel_path AS "Relative Path", checksum AS "Checksum ID", file_key AS "Unique ID", cp.base_dir || "\" || rel_path AS "URI" FROM files INNER JOIN catalog_properties cp ON cp.session_id = files.session_id </textarea>
         <div id="command-div">
           <br>
           <textarea id="commands" class="commandinput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/></textarea>

@@ -191,13 +191,13 @@ function buildBasicCommand() {
     if (!document.getElementById('all-radio').checked) {
         let extensions = [];
         if (document.getElementById('pdf-docs-radio').checked) {
-            extensions.push(' extension = ".pdf" ');
+            extensions.push(' "File Type" = ".pdf" ');
         }
         if (document.getElementById('word-docs-radio').checked) {
-            extensions.push(' extension LIKE ".doc%" ');
+            extensions.push(' "File Type" LIKE ".doc%" ');
         }
         if (document.getElementById('xls-docs-radio').checked) {
-            extensions.push(' extension LIKE ".xl%" ');
+            extensions.push(' "File Type" LIKE ".xl%" ');
         }
         if (extensions.length == 1) {
             sqlCommand += ' \n AND ' + extensions[0];
@@ -212,7 +212,7 @@ function buildBasicCommand() {
 
     // Determine if duplicates should be included or not
     if (!document.getElementById('duplicates').checked) {
-        sqlCommand += '\nGROUP BY checksum';
+        sqlCommand += '\nGROUP BY "Checksum ID"';
     };
     
     return sqlCommand + sortCommand;
@@ -310,6 +310,8 @@ function buildTabulatorTable(columns, values) {
             
             document.body.appendChild(fileLink);
             fileLink.click();
+            document.body.removeChild(fileLink);
+            
         } else {
             alert('URI not defined for this row');
         }
