@@ -4,7 +4,6 @@ let outputElement = document.getElementById("tabulator-table");
 let errorElement  = document.getElementById("error");
 let dbFileElement = document.getElementById("dbupload");
 let isError = false;
-let maxSQLResults = 100000;
 
 function error(e) {
     console.log(e);
@@ -28,37 +27,20 @@ function execute(commands) {
         error(Error('No database file defined. Please load database using link above.'));
         return;
     };
+    
+    results = db.exec(commands);
+    if (results.length == 0) {
+        error(Error('Command returned no results.'));
+        return;
+    };
 
-    // Test to see how many results will be returned
-    let numRows = findNumRows(commands);
-    console.log(numRows);
-    if (numRows > maxSQLResults) {
-        error(Error('Too many rows returned. Please modify search and continue.'));
-    } else {
-        results = db.exec(commands);
-        if (results.length == 0) {
-            error(Error('Command returned no results.'));
-            return;
-        };
+    if (results.length != 1) {
+        alert("Please only run one SQL command at a time.");
+    };
 
-        if (results.length != 1) {
-            alert("Please only run one SQL command at a time.");
-        };
-
-        table = buildTabulatorTable(results[0].columns, results[0].values);
-    }
+    table = buildTabulatorTable(results[0].columns, results[0].values);
 }
 
-function findNumRows (commands) {
-    let miniCommand = 'SELECT COUNT("File Name") FROM ( ';
-    let i = commands.search(/[;]/);
-    miniCommand += commands.slice(0,i);
-    miniCommand += ' ) ;';
-
-    results = db.exec(miniCommand);
-
-    return results[0].values[0][0];
-}
 
 function getCommands () {
     let basicDiv = document.getElementById('basic');
@@ -66,9 +48,7 @@ function getCommands () {
     if (basicDiv.hidden & !advancedDiv.hidden) {
         return document.getElementById('preamble').innerText + buildAdvancedCommand() + ';';
     } else if (!basicDiv.hidden & advancedDiv.hidden) {
-        let basicCommands = buildBasicCommand();
-        // console.log(basicCommands);
-        return document.getElementById('preamble').innerText + basicCommands + ';';
+        return document.getElementById('preamble').innerText + buildBasicCommand() + ';';
     } else {
         error(Error('Conflicting state in Basic/Advanced views'));
     }
@@ -179,15 +159,7 @@ function setRadioFiletypes(state) {
 
 
 function buildBasicCommand() {
-    let basicCommands = buildBasicCommandComponents();
-
-    return basicCommands.join('\n');
-
-}
-
-function buildBasicCommandComponents() {
-    let whereCommand = '';
-    let groupCommand = '';
+    let sqlCommand = '';
     let sortCommand = '';
 
     let searchString = document.getElementById('searchbar').value;
@@ -198,22 +170,22 @@ function buildBasicCommandComponents() {
     searchString = searchString.replace(/[\*|\s]/g, '%');
 
     let searchField = document.getElementById('search-field');
-    whereCommand += 'WHERE';
+    sqlCommand += 'WHERE';
     if (searchField.value == 'select-filename') {
-        whereCommand += ' "File Name" ';
-        sortCommand = 'ORDER BY "File Name"';
+        sqlCommand += ' "File Name" ';
+        sortCommand = '\nORDER BY "File Name"';
     } else if (searchField.value == 'select-relpath') {
-        whereCommand += ' "Relative Path" ';
-        sortCommand = 'ORDER BY "Relative Path"';
+        sqlCommand += ' "Relative Path" ';
+        sortCommand = '\nORDER BY "Relative Path"';
     } else if (searchField.value == 'select-filekey') {
-        whereCommand += ' "Unique Id" ';
-        sortCommand = 'ORDER BY "File Name"';
+        sqlCommand += ' "Unique Id" ';
+        sortCommand = '\nORDER BY "File Name"';
     } else {
         error(Error('Undefined search field'));
     }
     
-    whereCommand += 'LIKE ';
-    whereCommand += searchString;
+    sqlCommand += 'LIKE ';
+    sqlCommand += searchString;
 
     // Set the extension clauses
     if (!document.getElementById('all-radio').checked) {
@@ -228,22 +200,22 @@ function buildBasicCommandComponents() {
             extensions.push(' "File Type" LIKE ".xl%" ');
         }
         if (extensions.length == 1) {
-            whereCommand += ' \n AND ' + extensions[0];
+            sqlCommand += ' \n AND ' + extensions[0];
         } else if (extensions.length > 1) {
-            whereCommand += ' \n AND ( ' + extensions[0];
+            sqlCommand += ' \n AND ( ' + extensions[0];
             for (let i = 1; i < extensions.length; i++) {
-                whereCommand += ' \n OR ' + extensions[i];
+                sqlCommand += ' \n OR ' + extensions[i];
             }
-            whereCommand += ' ) ';
+            sqlCommand += ' ) ';
         }
     }
 
     // Determine if duplicates should be included or not
     if (!document.getElementById('duplicates').checked) {
-        groupCommand += 'GROUP BY "Checksum ID"';
+        sqlCommand += '\nGROUP BY "Checksum ID"';
     };
     
-    return [whereCommand, groupCommand, sortCommand];
+    return sqlCommand + sortCommand;
 }
 
 function buildAdvancedCommand() {
